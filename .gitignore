@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.vite/
+coverage/
+*.local
+*.png
+*.jpg
+*.jpeg
+*.webp
+!public/icon.svg

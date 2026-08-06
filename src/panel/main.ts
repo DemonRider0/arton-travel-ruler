@@ -97,7 +97,7 @@ function render(): void {
       <p>Importe e calibre seus próprios mapas de Arton e Lamnor.</p>
     </header>
     <p class="status ${statusVariant}" role="status">${escapeHtml(status)}</p>
-    ${role === "PLAYER" ? '<p class="notice">Somente o mestre pode importar e alterar a calibração. As medições continuam visíveis para todos.</p>' : ""}
+    ${role === "PLAYER" ? '<p class="notice">Somente o mestre importa mapas e altera a calibração. Jogadores também podem traçar e apagar rotas quando a sala permite criar e excluir itens da camada Régua.</p>' : ""}
     <section class="map-list" aria-label="Mapas disponíveis">${cards}</section>
     ${calibrationSection}
     <p class="hint">Após importar, abra a cena criada no Atlas. A calibração será aplicada automaticamente.</p>

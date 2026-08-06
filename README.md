@@ -1,6 +1,6 @@
 # Régua de Viagem de Arton para Owlbear Rodeo
 
-Extensão privada/pessoal para medir viagens em linha reta diretamente na cena do Owlbear Rodeo. O MVP inclui calibração para os mapas fornecidos de **Arton** e **Lamnor**, régua nativa, dias de viagem e persistência compartilhada.
+Extensão privada/pessoal para traçar rotas de viagem diretamente na cena do Owlbear Rodeo. A versão 0.2 inclui calibração para os mapas fornecidos de **Arton** e **Lamnor**, rotas com vários trechos, dias de viagem e persistência compartilhada.
 
 Os mapas **não fazem parte deste repositório**. O mestre escolhe um arquivo local e o envia diretamente para o próprio Atlas do Owlbear Rodeo.
 
@@ -13,12 +13,16 @@ Os mapas **não fazem parte deste repositório**. O mestre escolhe um arquivo lo
 - Calibração independente em cada cena/mapa.
 - Perfis iniciais de Arton e Lamnor baseados nas barras impressas de 1000 km.
 - Suporte a cópias redimensionadas proporcionalmente.
-- Ferramenta nativa de dois cliques na barra lateral do Owlbear.
-- Prévia local durante a medição e, ao concluir, régua e dois marcadores compartilhados.
+- Ferramenta de rota disponível na barra lateral para mestre e jogadores.
+- Rotas com dois ou mais pontos e soma correta da distância de todos os trechos.
+- Linha amarela fina e pontilhada, marcadores pequenos e rótulo compacto fora da linha.
+- Prévia local durante o traçado; a rota concluída é compartilhada com toda a sala.
 - Rótulo com quilômetros e dias de viagem.
 - Velocidade configurável em quilômetros por dia; o total de dias é arredondado para cima.
 - Medições gravadas como itens da cena, visíveis para todos e preservadas ao reabrir a cena.
-- Ações para cancelar, apagar a última medição e apagar todas as medições da extensão.
+- Ações para cancelar, apagar a última rota e apagar todas as rotas da extensão.
+- Exclusão individual pelo menu contextual de qualquer trecho, ponto ou rótulo da rota.
+- Leitura e exclusão compatíveis com medições salvas pela versão 0.1.
 
 ## Mapas e calibração
 
@@ -64,13 +68,24 @@ O uso de `localhost` para desenvolvimento segue o fluxo recomendado na documenta
 5. Se uma cena já existente tiver o mapa na camada `MAP`, use **Calibrar cena atual** no cartão correto.
 6. Ajuste **Quilômetros percorridos por dia** se não quiser usar o padrão de 36 km/dia.
 7. Selecione a ferramenta **Régua de viagem** na barra da cena.
-8. Clique no ponto inicial, mova o cursor e clique no ponto final.
+8. Clique no ponto inicial e depois em cada parada ou desvio da viagem.
+9. Para concluir, clique novamente no último ponto amarelo. Uma rota simples de A até B usa os cliques `A → B → B`.
+
+Mestre e jogadores podem usar a ferramenta. Para jogadores, a sala precisa permitir **criar** itens na camada **Régua**. Para que também possam apagar rotas, permita **excluir** itens dessa camada nas configurações de permissões da sala.
 
 As ações do menu da ferramenta permitem:
 
 - cancelar a medição em andamento — a tecla `Esc` também cancela;
-- apagar somente a medição mais recente;
-- apagar todas as medições criadas por esta extensão.
+- apagar somente a rota mais recente;
+- apagar todas as rotas criadas por esta extensão.
+
+Para apagar uma rota específica no computador:
+
+1. Troque para a ferramenta normal de seleção do Owlbear.
+2. Selecione qualquer linha pontilhada, ponto amarelo ou rótulo da rota.
+3. No menu contextual que aparecer, escolha **Apagar rota selecionada**.
+
+O comando remove todos os trechos, pontos e o rótulo daquela rota, e não apenas o item clicado.
 
 As ações de apagar filtram os metadados próprios da extensão e não removem réguas ou desenhos comuns.
 
@@ -106,6 +121,11 @@ Os testes cobrem:
 - distância euclidiana;
 - escala e rotação do item de mapa;
 - cálculo e arredondamento dos dias de viagem.
+- soma de rotas com vários trechos;
+- tolerância de clique para concluir no último ponto em diferentes níveis de zoom;
+- posição do rótulo no último trecho;
+- compatibilidade entre os metadados das versões 0.1 e 0.2;
+- caminhos e recursos necessários à publicação no GitHub Pages.
 
 ## Roteiro de testes manuais no Owlbear
 
@@ -135,17 +155,21 @@ Faça estes testes antes de usar a extensão em uma sessão real.
 ### 4. Régua e dias
 
 - Defina 100 km/dia.
-- Faça uma medição de aproximadamente 1000 km e confirme a exibição de aproximadamente 10 dias.
-- Inicie outra medição e pressione `Esc`; a prévia deve desaparecer sem criar itens compartilhados.
-- Conclua duas medições, apague a última e confirme que somente a primeira permanece.
-- Use **Apagar todas** e confirme que as medições da extensão desapareceram.
+- Faça uma rota de aproximadamente 1000 km e confirme a exibição de aproximadamente 10 dias.
+- Confirme que a linha é fina e pontilhada, os pontos são discretos e o rótulo não fica girado sobre a linha.
+- Crie uma rota `A → B → C` e clique novamente em C. Confirme que a distância corresponde a `A–B + B–C`, não à linha reta `A–C`.
+- Inicie outra rota e pressione `Esc`; a prévia deve desaparecer sem criar itens compartilhados.
+- Conclua duas rotas, apague a última e confirme que somente a primeira permanece.
+- Use **Apagar todas** e confirme que as rotas da extensão desapareceram.
+- Selecione um trecho de uma rota com a ferramenta de seleção e use **Apagar rota selecionada**; confirme que a rota inteira desaparece.
 
 ### 5. Compartilhamento e persistência
 
 - Entre na mesma sala em outra janela ou navegador como jogador.
-- Conclua uma medição como mestre e confirme que ela aparece para o jogador.
+- Conclua uma rota como mestre e confirme que ela aparece para o jogador.
+- Com as permissões de Régua liberadas, crie outra rota como jogador e confirme que ela aparece para o mestre.
 - Recarregue as duas páginas e reabra a cena; a medição deve continuar presente.
-- Confirme que o jogador vê a linha, os dois marcadores, a distância e os dias.
+- Confirme que todos veem os trechos, os pontos, a distância e os dias.
 
 ### 6. Transformação do mapa
 
@@ -160,22 +184,22 @@ src/
   background/       registro da ferramenta em segundo plano
   import/           dimensões, upload da cena e importações pendentes
   maps/             cadastro dos mapas e matemática de calibração
-  measurements/     itens visuais, rótulos e exclusão persistente
+  measurements/     rotas, matemática, itens visuais, metadados e exclusão
   owlbear/           leitura e gravação da calibração na cena
   panel/             interface de importação e configuração
   shared/            constantes e modelos de dados
-  tool/              fluxo de dois cliques e ações nativas
+  tool/              fluxo de vários pontos, ações e menu contextual
 tests/               testes da matemática
 public/              manifesto e ícones
 ```
 
-O cadastro em `src/maps/definitions.ts` isola os perfis de mapa. As medições são agrupadas por um identificador próprio, o que deixa a base preparada para novos mapas e para uma futura representação de rotas com vários trechos. Localidades clicáveis podem ser adicionadas em um módulo separado, sem mudar a calibração ou a persistência atuais.
+O cadastro em `src/maps/definitions.ts` isola os perfis de mapa. Cada rota é agrupada por um identificador próprio e seus trechos e pontos têm índices independentes. Isso deixa a base preparada para novos mapas e para futuras edições de rotas. Localidades clicáveis podem ser adicionadas em um módulo separado, sem mudar a calibração atual.
 
 ## Limitações reais do MVP
 
-- A distância é uma linha reta; não existem rotas com vários trechos.
 - Não existem marcadores de localidades nem cartões clicáveis.
-- Somente o mestre cria e apaga medições; os jogadores veem os resultados sincronizados.
+- A rota pode ter vários trechos, mas os pontos não podem ser movidos ou editados depois de salva; apague e refaça a rota.
+- A disponibilidade para jogadores depende das permissões de criação e exclusão da camada **Régua** definidas pelo mestre no Owlbear.
 - Há um mapa calibrado por cena.
 - Os dois perfis dependem da mesma arte/proporção das imagens de referência. Uma edição recortada exige um novo perfil.
 - A precisão física está limitada à barra impressa e à cartografia da própria ilustração.

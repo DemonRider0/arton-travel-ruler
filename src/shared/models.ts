@@ -36,7 +36,7 @@ export interface PendingMapImport {
   createdAt: string;
 }
 
-export interface MeasurementMetadata {
+export interface LegacyMeasurementMetadata {
   version: 1;
   measurementId: string;
   part: "ruler" | "start-marker" | "end-marker";
@@ -45,6 +45,19 @@ export interface MeasurementMetadata {
   travelDays: number;
   createdAt: string;
 }
+
+export interface RouteMeasurementMetadata {
+  version: 2;
+  measurementId: string;
+  part: "segment" | "waypoint" | "label";
+  partIndex: number;
+  mapId: MapId;
+  distanceKilometers: number;
+  travelDays: number;
+  createdAt: string;
+}
+
+export type MeasurementMetadata = LegacyMeasurementMetadata | RouteMeasurementMetadata;
 
 export interface MeasurementPoints {
   start: Vector2;

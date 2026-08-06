@@ -1,26 +1,31 @@
 import {
-  buildRuler,
+  buildLabel,
+  buildLine,
   buildShape,
   type Item,
+  type Label,
+  type Line,
   type Shape,
   type Vector2,
 } from "@owlbear-rodeo/sdk";
 import { MEASUREMENT_COLORS, METADATA } from "../shared/constants";
-import type { MapId, MeasurementMetadata } from "../shared/models";
-import { formatMeasurement } from "./format";
+import type { MapId, RouteMeasurementMetadata } from "../shared/models";
+import { formatMeasurementLabel } from "./format";
+import { getLastSegmentMidpoint } from "./routeMath";
 
-const MARKER_SIZE = 18;
+const LINE_WIDTH = 3;
+const LINE_DASH = [10, 8];
+const MARKER_SIZE = 12;
 
-export interface MeasurementVisuals {
+export interface RouteVisuals {
   items: Item[];
-  rulerId: string;
-  startMarkerId: string;
-  endMarkerId: string;
+  segmentIds: string[];
+  markerIds: string[];
+  labelId: string;
 }
 
-interface BuildVisualsOptions {
-  start: Vector2;
-  end: Vector2;
+interface BuildRouteVisualsOptions {
+  points: Vector2[];
   distanceKilometers: number;
   travelDays: number;
   mapId: MapId;
@@ -29,46 +34,58 @@ interface BuildVisualsOptions {
   persistent: boolean;
 }
 
-export function buildMeasurementVisuals(options: BuildVisualsOptions): MeasurementVisuals {
-  const label = formatMeasurement(options.distanceKilometers, options.travelDays);
-  const ruler = buildRuler()
-    .name("Distância de viagem")
-    .startPosition(options.start)
-    .endPosition(options.end)
-    .measurement(label)
-    .variant("DASHED")
-    .locked(true)
-    .disableHit(true);
-  const startMarker = buildMarker(options.start, "Início da viagem");
-  const endMarker = buildMarker(options.end, "Fim da viagem");
-
-  if (options.persistent) {
-    ruler.metadata({
-      [METADATA.measurement]: buildMetadata(options, "ruler"),
-    });
-    startMarker.metadata({
-      [METADATA.measurement]: buildMetadata(options, "start-marker"),
-    });
-    endMarker.metadata({
-      [METADATA.measurement]: buildMetadata(options, "end-marker"),
-    });
+export function buildRouteVisuals(options: BuildRouteVisualsOptions): RouteVisuals {
+  if (options.points.length === 0) {
+    throw new Error("Uma rota precisa de pelo menos um ponto.");
   }
 
-  const rulerItem = ruler.build();
-  const startMarkerItem = startMarker.build();
-  const endMarkerItem = endMarker.build();
+  const segments = options.points.slice(1).map((end, index) =>
+    buildSegment(options.points[index]!, end, options, index),
+  );
+  const markers = options.points.map((point, index) =>
+    buildMarker(point, options, index),
+  );
+  const label = buildRouteLabel(options);
+  const segmentItems = segments.map((builder) => builder.build());
+  const markerItems = markers.map((builder) => builder.build());
+  const labelItem = label.build();
 
   return {
-    items: [rulerItem, startMarkerItem, endMarkerItem],
-    rulerId: rulerItem.id,
-    startMarkerId: startMarkerItem.id,
-    endMarkerId: endMarkerItem.id,
+    items: [...segmentItems, ...markerItems, labelItem],
+    segmentIds: segmentItems.map((item) => item.id),
+    markerIds: markerItems.map((item) => item.id),
+    labelId: labelItem.id,
   };
 }
 
-function buildMarker(position: Vector2, name: string): ReturnType<typeof buildShape> {
-  return buildShape()
-    .name(name)
+function buildSegment(
+  start: Vector2,
+  end: Vector2,
+  options: BuildRouteVisualsOptions,
+  index: number,
+): ReturnType<typeof buildLine> {
+  const builder = buildLine()
+    .name(`Trecho ${index + 1} da rota`)
+    .startPosition(start)
+    .endPosition(end)
+    .strokeColor(MEASUREMENT_COLORS.line)
+    .strokeOpacity(1)
+    .strokeWidth(LINE_WIDTH)
+    .strokeDash(LINE_DASH)
+    .layer("RULER")
+    .locked(!options.persistent)
+    .disableHit(!options.persistent);
+  addMetadata(builder, options, "segment", index);
+  return builder;
+}
+
+function buildMarker(
+  position: Vector2,
+  options: BuildRouteVisualsOptions,
+  index: number,
+): ReturnType<typeof buildShape> {
+  const builder = buildShape()
+    .name(`Ponto ${index + 1} da rota`)
     .position(position)
     .width(MARKER_SIZE)
     .height(MARKER_SIZE)
@@ -77,27 +94,67 @@ function buildMarker(position: Vector2, name: string): ReturnType<typeof buildSh
     .fillOpacity(1)
     .strokeColor(MEASUREMENT_COLORS.markerStroke)
     .strokeOpacity(1)
-    .strokeWidth(3)
+    .strokeWidth(2)
     .layer("RULER")
-    .locked(true)
-    .disableHit(true);
+    .locked(!options.persistent)
+    .disableHit(!options.persistent);
+  addMetadata(builder, options, "waypoint", index);
+  return builder;
 }
 
-function buildMetadata(
-  options: BuildVisualsOptions,
-  part: MeasurementMetadata["part"],
-): MeasurementMetadata {
-  return {
-    version: 1,
+function buildRouteLabel(options: BuildRouteVisualsOptions): ReturnType<typeof buildLabel> {
+  const builder = buildLabel()
+    .name("Distância e duração da rota")
+    .position(getLastSegmentMidpoint(options.points))
+    .plainText(formatMeasurementLabel(options.distanceKilometers, options.travelDays))
+    .fontSize(14)
+    .fontWeight(500)
+    .lineHeight(1.15)
+    .padding(4)
+    .fillColor(MEASUREMENT_COLORS.labelText)
+    .backgroundColor(MEASUREMENT_COLORS.labelBackground)
+    .backgroundOpacity(0.96)
+    .cornerRadius(6)
+    .pointerDirection("DOWN")
+    .pointerWidth(7)
+    .pointerHeight(7)
+    .layer("RULER")
+    .locked(!options.persistent)
+    .disableHit(!options.persistent);
+  addMetadata(builder, options, "label", 0);
+  return builder;
+}
+
+function addMetadata(
+  builder: ReturnType<typeof buildLine | typeof buildShape | typeof buildLabel>,
+  options: BuildRouteVisualsOptions,
+  part: RouteMeasurementMetadata["part"],
+  partIndex: number,
+): void {
+  if (!options.persistent) {
+    return;
+  }
+  const metadata: RouteMeasurementMetadata = {
+    version: 2,
     measurementId: options.measurementId,
     part,
+    partIndex,
     mapId: options.mapId,
     distanceKilometers: options.distanceKilometers,
     travelDays: options.travelDays,
     createdAt: options.createdAt,
   };
+  builder.metadata({ [METADATA.measurement]: metadata });
+}
+
+export function isLineItem(item: Item): item is Line {
+  return item.type === "LINE";
 }
 
 export function isShapeItem(item: Item): item is Shape {
   return item.type === "SHAPE";
+}
+
+export function isLabelItem(item: Item): item is Label {
+  return item.type === "LABEL";
 }

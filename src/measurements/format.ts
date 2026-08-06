@@ -7,3 +7,11 @@ export function formatMeasurement(distanceKilometers: number, travelDays: number
   const dayLabel = travelDays === 1 ? "dia" : "dias";
   return `${formatDistance(distanceKilometers)} km • ${travelDays} ${dayLabel}`;
 }
+
+export function formatMeasurementLabel(
+  distanceKilometers: number,
+  travelDays: number,
+): string {
+  const dayLabel = travelDays === 1 ? "dia" : "dias";
+  return `${formatDistance(distanceKilometers)} km\n◷ ${travelDays} ${dayLabel}`;
+}

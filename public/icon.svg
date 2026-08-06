@@ -1,7 +1,9 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Régua de viagem">
-  <rect width="64" height="64" rx="14" fill="#4b2a68"/>
-  <path d="M14 45 45 14l7 7-31 31z" fill="#f5c451" stroke="#fff" stroke-width="2"/>
-  <path d="m21 39 4 4m2-10 4 4m2-10 4 4m2-10 4 4" stroke="#4b2a68" stroke-width="2.5" stroke-linecap="round"/>
-  <circle cx="14" cy="46" r="4" fill="#fff"/>
-  <circle cx="50" cy="18" r="4" fill="#fff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none" role="img" aria-label="Régua de Viagem">
+  <circle cx="32" cy="32" r="29" fill="#4B2A68"/>
+  <circle cx="32" cy="32" r="26" stroke="#F5C451" stroke-width="2" opacity=".75"/>
+  <path d="M15 43c8-17 14 2 23-15 4-7 8-8 12-7" stroke="#F5C451" stroke-width="4" stroke-linecap="round" stroke-dasharray="5 6"/>
+  <circle cx="15" cy="43" r="5" fill="#F5C451" stroke="#fff" stroke-width="2"/>
+  <circle cx="38" cy="28" r="4" fill="#F5C451" stroke="#fff" stroke-width="2"/>
+  <path d="M50 14c-5 0-9 4-9 9 0 7 9 16 9 16s9-9 9-16c0-5-4-9-9-9Z" fill="#F5C451" stroke="#fff" stroke-width="2"/>
+  <circle cx="50" cy="23" r="3" fill="#4B2A68"/>
 </svg>

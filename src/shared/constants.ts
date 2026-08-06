@@ -6,6 +6,7 @@ export const IDS = {
   cancelAction: `${EXTENSION_ID}/action/cancel`,
   deleteLastAction: `${EXTENSION_ID}/action/delete-last`,
   deleteAllAction: `${EXTENSION_ID}/action/delete-all`,
+  deleteRouteContextMenu: `${EXTENSION_ID}/context-menu/delete-route`,
 } as const;
 
 export const METADATA = {
@@ -15,8 +16,10 @@ export const METADATA = {
 
 export const MEASUREMENT_COLORS = {
   line: "#F5C451",
-  markerFill: "#4B2A68",
-  markerStroke: "#FFFFFF",
+  markerFill: "#F5C451",
+  markerStroke: "#4B2A68",
+  labelBackground: "#F7F5F1",
+  labelText: "#2E2A35",
 } as const;
 
 export const DEFAULT_KM_PER_DAY = 36;

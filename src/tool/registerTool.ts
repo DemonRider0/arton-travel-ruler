@@ -1,77 +1,86 @@
 import OBR, {
-  isRuler,
   type Image,
   type Item,
-  type ToolFilter,
-  type ToolModeFilter,
   type ToolEvent,
+  type ToolModeFilter,
   type Vector2,
 } from "@owlbear-rodeo/sdk";
-import { calculateTravelDays, distanceInKilometers, getImageTransform } from "../maps/calibration";
-import { buildMeasurementVisuals, isShapeItem, type MeasurementVisuals } from "../measurements/items";
-import { deleteAllMeasurements, deleteLastMeasurement } from "../measurements/repository";
-import { formatMeasurement } from "../measurements/format";
+import { calculateTravelDays, getImageTransform } from "../maps/calibration";
+import {
+  buildRouteVisuals,
+  isLabelItem,
+  isLineItem,
+  isShapeItem,
+  type RouteVisuals,
+} from "../measurements/items";
+import {
+  deleteAllMeasurements,
+  deleteLastMeasurement,
+  deleteMeasurementsSelected,
+} from "../measurements/repository";
+import { formatMeasurement, formatMeasurementLabel } from "../measurements/format";
+import {
+  getLastSegmentMidpoint,
+  isNearPoint,
+  routeDistanceInKilometers,
+} from "../measurements/routeMath";
 import { getCalibratedMapItem, getSceneCalibration } from "../owlbear/sceneCalibration";
-import { IDS } from "../shared/constants";
+import { IDS, METADATA } from "../shared/constants";
 import type { MapCalibration } from "../shared/models";
 
-interface ActiveMeasurement {
-  start: Vector2;
+interface ActiveRoute {
+  points: Vector2[];
   calibration: MapCalibration;
   mapItem: Image;
-  preview: MeasurementVisuals;
+  preview: RouteVisuals;
+  previewId: string;
 }
 
-let activeMeasurement: ActiveMeasurement | null = null;
+let activeRoute: ActiveRoute | null = null;
 let latestPointer: Vector2 | null = null;
 let previewFrame: number | null = null;
 
 export async function registerTravelRulerTool(): Promise<void> {
-  const toolIcon = assetUrl("icon.svg");
-  const toolFilter: ToolFilter = { roles: ["GM"] };
+  const toolIcon = assetUrl("tool.svg");
   const activeFilter: ToolModeFilter = {
     activeTools: [IDS.tool],
     activeModes: [IDS.measureMode],
-    roles: ["GM"],
   };
 
   await OBR.tool.create({
     id: IDS.tool,
-    icons: [{ icon: toolIcon, label: "Régua de viagem", filter: toolFilter }],
-    disabled: { roles: ["PLAYER"] },
+    icons: [{ icon: toolIcon, label: "Régua de viagem" }],
     defaultMode: IDS.measureMode,
   });
 
   await OBR.tool.createMode({
     id: IDS.measureMode,
-    icons: [{ icon: toolIcon, label: "Medir viagem", filter: toolFilter }],
+    icons: [{ icon: toolIcon, label: "Traçar rota" }],
     cursors: [{ cursor: "crosshair", filter: activeFilter }],
     preventDrag: activeFilter,
     onToolClick: (_context, event) => handleToolClick(event),
     onToolMove: (_context, event) => schedulePreview(event.pointerPosition),
     onKeyDown: (_context, event) => {
       if (event.key === "Escape") {
-        void cancelMeasurement(true);
+        void cancelRoute(true);
       }
     },
     onDeactivate: () => {
-      void cancelMeasurement(false);
+      void cancelRoute(false);
     },
   });
 
   await OBR.tool.createAction({
     id: IDS.cancelAction,
-    icons: [{ icon: assetUrl("cancel.svg"), label: "Cancelar medição", filter: activeFilter }],
-    disabled: { roles: ["PLAYER"] },
+    icons: [{ icon: assetUrl("cancel.svg"), label: "Cancelar rota", filter: activeFilter }],
     onClick: () => {
-      void cancelMeasurement(true);
+      void cancelRoute(true);
     },
   });
 
   await OBR.tool.createAction({
     id: IDS.deleteLastAction,
-    icons: [{ icon: assetUrl("delete-last.svg"), label: "Apagar última medição", filter: activeFilter }],
-    disabled: { roles: ["PLAYER"] },
+    icons: [{ icon: assetUrl("delete-last.svg"), label: "Apagar última rota", filter: activeFilter }],
     onClick: () => {
       void handleDeleteLast();
     },
@@ -79,77 +88,116 @@ export async function registerTravelRulerTool(): Promise<void> {
 
   await OBR.tool.createAction({
     id: IDS.deleteAllAction,
-    icons: [{ icon: assetUrl("delete-all.svg"), label: "Apagar todas as medições", filter: activeFilter }],
-    disabled: { roles: ["PLAYER"] },
+    icons: [{ icon: assetUrl("delete-all.svg"), label: "Apagar todas as rotas", filter: activeFilter }],
     onClick: () => {
       void handleDeleteAll();
+    },
+  });
+
+  await OBR.contextMenu.create({
+    id: IDS.deleteRouteContextMenu,
+    icons: [
+      {
+        icon: assetUrl("delete-route.svg"),
+        label: "Apagar rota selecionada",
+        filter: {
+          min: 1,
+          permissions: ["DELETE"],
+          some: [
+            {
+              key: ["metadata", METADATA.measurement],
+              value: undefined,
+              operator: "!=",
+            },
+          ],
+        },
+      },
+    ],
+    onClick: (context) => {
+      void handleDeleteSelected(context.items);
     },
   });
 }
 
 async function handleToolClick(event: ToolEvent): Promise<boolean> {
   try {
-    if (!activeMeasurement) {
-      await beginMeasurement(event.pointerPosition);
+    if (!activeRoute) {
+      await beginRoute(event.pointerPosition);
     } else {
-      await finishMeasurement(event.pointerPosition);
+      await addWaypointOrFinish(event.pointerPosition);
     }
   } catch (error) {
     await OBR.notification.show(errorMessage(error), "ERROR");
-    await cancelMeasurement(false);
+    await cancelRoute(false);
   }
   return true;
 }
 
-async function beginMeasurement(start: Vector2): Promise<void> {
+async function beginRoute(start: Vector2): Promise<void> {
+  await requirePermission("RULER_CREATE", "criar rotas");
   const calibration = await getSceneCalibration();
   if (!calibration) {
     throw new Error("Calibre o mapa desta cena no painel da extensão antes de medir.");
   }
   const mapItem = await getCalibratedMapItem(calibration);
-  const preview = buildMeasurementVisuals({
-    start,
-    end: start,
-    distanceKilometers: 0,
-    travelDays: 0,
-    mapId: calibration.mapId,
-    measurementId: crypto.randomUUID(),
-    createdAt: new Date().toISOString(),
-    persistent: false,
-  });
+  const previewId = crypto.randomUUID();
+  const points = [start];
+  const preview = buildPreview(points, start, calibration, mapItem, previewId);
   await OBR.scene.local.addItems(preview.items);
-  activeMeasurement = { start, calibration, mapItem, preview };
+  activeRoute = { points, calibration, mapItem, preview, previewId };
 }
 
-async function finishMeasurement(end: Vector2): Promise<void> {
-  const measurement = activeMeasurement;
-  if (!measurement) {
+async function addWaypointOrFinish(point: Vector2): Promise<void> {
+  const route = activeRoute;
+  if (!route) {
+    return;
+  }
+  const lastPoint = route.points.at(-1);
+  if (!lastPoint) {
     return;
   }
 
-  const result = calculateMeasurement(measurement, end);
-  const createdAt = new Date().toISOString();
-  const visuals = buildMeasurementVisuals({
-    start: measurement.start,
-    end,
+  const viewportScale = await OBR.viewport.getScale();
+  if (isNearPoint(point, lastPoint, viewportScale)) {
+    if (route.points.length < 2) {
+      await OBR.notification.show("Escolha um segundo ponto antes de finalizar a rota.", "INFO");
+      return;
+    }
+    await finishRoute();
+    return;
+  }
+
+  route.points.push(point);
+  await rebuildPreview(point);
+}
+
+async function finishRoute(): Promise<void> {
+  const route = activeRoute;
+  if (!route || route.points.length < 2) {
+    return;
+  }
+  await requirePermission("RULER_CREATE", "criar rotas");
+  const result = calculateRoute(route.points, route);
+  const visuals = buildRouteVisuals({
+    points: route.points,
     distanceKilometers: result.distanceKilometers,
     travelDays: result.travelDays,
-    mapId: measurement.calibration.mapId,
+    mapId: route.calibration.mapId,
     measurementId: crypto.randomUUID(),
-    createdAt,
+    createdAt: new Date().toISOString(),
     persistent: true,
   });
 
   await OBR.scene.items.addItems(visuals.items);
   await clearPreview();
   await OBR.notification.show(
-    formatMeasurement(result.distanceKilometers, result.travelDays),
+    `Rota salva: ${formatMeasurement(result.distanceKilometers, result.travelDays)}.`,
     "SUCCESS",
   );
 }
 
 function schedulePreview(pointer: Vector2): void {
-  if (!activeMeasurement) {
+  if (!activeRoute) {
     return;
   }
   latestPointer = pointer;
@@ -167,21 +215,32 @@ function schedulePreview(pointer: Vector2): void {
 }
 
 async function updatePreview(end: Vector2): Promise<void> {
-  const measurement = activeMeasurement;
-  if (!measurement) {
+  const route = activeRoute;
+  if (!route) {
     return;
   }
-  const result = calculateMeasurement(measurement, end);
-  const preview = measurement.preview;
+  const previewPoints = [...route.points, end];
+  const result = calculateRoute(previewPoints, route);
+  const lastSegmentId = route.preview.segmentIds.at(-1);
+  const lastMarkerId = route.preview.markerIds.at(-1);
+  const ids = [lastSegmentId, lastMarkerId, route.preview.labelId].filter(
+    (id): id is string => Boolean(id),
+  );
+
   await OBR.scene.local.updateItems(
-    [preview.rulerId, preview.endMarkerId],
+    ids,
     (items) => {
       for (const item of items as Item[]) {
-        if (isRuler(item)) {
+        if (isLineItem(item)) {
           item.endPosition = end;
-          item.measurement = formatMeasurement(result.distanceKilometers, result.travelDays);
         } else if (isShapeItem(item)) {
           item.position = end;
+        } else if (isLabelItem(item)) {
+          item.position = getLastSegmentMidpoint(previewPoints);
+          item.text.plainText = formatMeasurementLabel(
+            result.distanceKilometers,
+            result.travelDays,
+          );
         }
       }
     },
@@ -189,28 +248,64 @@ async function updatePreview(end: Vector2): Promise<void> {
   );
 }
 
-function calculateMeasurement(
-  measurement: ActiveMeasurement,
-  end: Vector2,
-): { distanceKilometers: number; travelDays: number } {
-  const distance = distanceInKilometers(
-    measurement.start,
-    end,
-    getImageTransform(measurement.mapItem),
-    measurement.calibration.kilometersPerImagePixel,
+async function rebuildPreview(provisionalEnd: Vector2): Promise<void> {
+  const route = activeRoute;
+  if (!route) {
+    return;
+  }
+  const previousIds = route.preview.items.map((item) => item.id);
+  const nextPreview = buildPreview(
+    route.points,
+    provisionalEnd,
+    route.calibration,
+    route.mapItem,
+    route.previewId,
   );
-  const distanceKilometers = Math.round(distance * 10) / 10;
+  await OBR.scene.local.deleteItems(previousIds);
+  await OBR.scene.local.addItems(nextPreview.items);
+  route.preview = nextPreview;
+}
+
+function buildPreview(
+  points: Vector2[],
+  provisionalEnd: Vector2,
+  calibration: MapCalibration,
+  mapItem: Image,
+  previewId: string,
+): RouteVisuals {
+  const previewPoints = [...points, provisionalEnd];
+  const result = calculateRoute(previewPoints, { calibration, mapItem });
+  return buildRouteVisuals({
+    points: previewPoints,
+    distanceKilometers: result.distanceKilometers,
+    travelDays: result.travelDays,
+    mapId: calibration.mapId,
+    measurementId: previewId,
+    createdAt: new Date().toISOString(),
+    persistent: false,
+  });
+}
+
+function calculateRoute(
+  points: Vector2[],
+  route: Pick<ActiveRoute, "calibration" | "mapItem">,
+): { distanceKilometers: number; travelDays: number } {
+  const exactDistance = routeDistanceInKilometers(
+    points,
+    getImageTransform(route.mapItem),
+    route.calibration.kilometersPerImagePixel,
+  );
   return {
-    distanceKilometers,
-    travelDays: calculateTravelDays(distance, measurement.calibration.kilometersPerDay),
+    distanceKilometers: Math.round(exactDistance * 10) / 10,
+    travelDays: calculateTravelDays(exactDistance, route.calibration.kilometersPerDay),
   };
 }
 
-async function cancelMeasurement(showNotification: boolean): Promise<void> {
-  const hadMeasurement = Boolean(activeMeasurement);
+async function cancelRoute(showNotification: boolean): Promise<void> {
+  const hadRoute = Boolean(activeRoute);
   await clearPreview();
-  if (showNotification && hadMeasurement) {
-    await OBR.notification.show("Medição cancelada.", "INFO");
+  if (showNotification && hadRoute) {
+    await OBR.notification.show("Rota cancelada.", "INFO");
   }
 }
 
@@ -220,29 +315,64 @@ async function clearPreview(): Promise<void> {
     previewFrame = null;
   }
   latestPointer = null;
-  const previewIds = activeMeasurement?.preview.items.map((item) => item.id) ?? [];
-  activeMeasurement = null;
+  const previewIds = activeRoute?.preview.items.map((item) => item.id) ?? [];
+  activeRoute = null;
   if (previewIds.length > 0) {
     await OBR.scene.local.deleteItems(previewIds);
   }
 }
 
 async function handleDeleteLast(): Promise<void> {
-  await cancelMeasurement(false);
-  const count = await deleteLastMeasurement();
-  await OBR.notification.show(
-    count > 0 ? "Última medição apagada." : "Não há medições para apagar.",
-    count > 0 ? "SUCCESS" : "INFO",
-  );
+  try {
+    await requirePermission("RULER_DELETE", "apagar rotas");
+    await cancelRoute(false);
+    const count = await deleteLastMeasurement();
+    await OBR.notification.show(
+      count > 0 ? "Última rota apagada." : "Não há rotas para apagar.",
+      count > 0 ? "SUCCESS" : "INFO",
+    );
+  } catch (error) {
+    await OBR.notification.show(errorMessage(error), "ERROR");
+  }
 }
 
 async function handleDeleteAll(): Promise<void> {
-  await cancelMeasurement(false);
-  const count = await deleteAllMeasurements();
-  await OBR.notification.show(
-    count > 0 ? "Todas as medições foram apagadas." : "Não há medições para apagar.",
-    count > 0 ? "SUCCESS" : "INFO",
-  );
+  try {
+    await requirePermission("RULER_DELETE", "apagar rotas");
+    await cancelRoute(false);
+    const count = await deleteAllMeasurements();
+    await OBR.notification.show(
+      count > 0 ? "Todas as rotas foram apagadas." : "Não há rotas para apagar.",
+      count > 0 ? "SUCCESS" : "INFO",
+    );
+  } catch (error) {
+    await OBR.notification.show(errorMessage(error), "ERROR");
+  }
+}
+
+async function handleDeleteSelected(items: Item[]): Promise<void> {
+  try {
+    await requirePermission("RULER_DELETE", "apagar rotas");
+    const count = await deleteMeasurementsSelected(items);
+    await OBR.notification.show(
+      count > 0 ? "Rota selecionada apagada." : "Nenhuma rota da extensão foi selecionada.",
+      count > 0 ? "SUCCESS" : "INFO",
+    );
+  } catch (error) {
+    await OBR.notification.show(errorMessage(error), "ERROR");
+  }
+}
+
+async function requirePermission(
+  permission: "RULER_CREATE" | "RULER_DELETE",
+  action: string,
+): Promise<void> {
+  if (!(await OBR.player.hasPermission(permission))) {
+    throw new Error(
+      `A sala não permite que jogadores usem a camada de régua para ${action}. ` +
+        "O mestre pode liberar essa permissão nas configurações da sala.",
+    );
+  }
 }
 
 function assetUrl(fileName: string): string {
@@ -250,5 +380,5 @@ function assetUrl(fileName: string): string {
 }
 
 function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Não foi possível concluir a medição.";
+  return error instanceof Error ? error.message : "Não foi possível concluir a operação.";
 }

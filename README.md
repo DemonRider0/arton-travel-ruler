@@ -1,6 +1,6 @@
 # Régua de Viagem de Arton para Owlbear Rodeo
 
-Extensão privada/pessoal para traçar rotas de viagem diretamente na cena do Owlbear Rodeo. A versão 0.4.1 inclui calibração para os mapas fornecidos de **Arton** e **Lamnor**, rotas com vários trechos, consulta coordenada de pontos, dias de viagem e persistência compartilhada.
+Extensão privada/pessoal para traçar rotas de viagem diretamente na cena do Owlbear Rodeo. A versão estável 1.0.0 inclui calibração para os mapas fornecidos de **Arton** e **Lamnor**, rotas com vários trechos, consulta coordenada de pontos, dias de viagem e persistência compartilhada, validada em computador e celular.
 
 Os mapas **não fazem parte deste repositório**. O mestre escolhe um arquivo local e o envia diretamente para o próprio Atlas do Owlbear Rodeo.
 
@@ -247,7 +247,7 @@ docs/                site compilado e publicado pelo GitHub Pages
 
 O cadastro em `src/maps/definitions.ts` isola os perfis de mapa. Cada rota é agrupada por um identificador próprio e seus trechos e pontos têm índices independentes. Isso deixa a base preparada para novos mapas e para futuras edições de rotas. Localidades clicáveis podem ser adicionadas em um módulo separado, sem mudar a calibração atual.
 
-## Limitações reais do MVP
+## Limitações da versão 1.0
 
 - Não existem marcadores de localidades nem cartões clicáveis.
 - A rota pode ter vários trechos, mas os pontos não podem ser movidos ou editados depois de salva; apague e refaça a rota.

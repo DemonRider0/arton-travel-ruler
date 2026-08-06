@@ -1,15 +1,15 @@
 {
   "name": "Régua de Viagem de Arton",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "manifest_version": 1,
   "author": "DemonRider",
   "description": "Mede distâncias e dias de viagem nos mapas de Arton e Lamnor diretamente na cena.",
-  "icon": "./icon.svg",
-  "background_url": "./background.html",
+  "icon": "/arton-travel-ruler/icon.svg",
+  "background_url": "/arton-travel-ruler/background.html",
   "action": {
     "title": "Régua de Viagem",
-    "icon": "./icon.svg",
-    "popover": "./index.html",
+    "icon": "/arton-travel-ruler/icon.svg",
+    "popover": "/arton-travel-ruler/index.html",
     "height": 650,
     "width": 380
   }

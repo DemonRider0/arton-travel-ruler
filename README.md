@@ -44,12 +44,12 @@ npm install
 npm run dev
 ```
 
-O Vite exibirá um endereço local, normalmente `http://localhost:5173`.
+O Vite exibirá um endereço local. Como o projeto usa a mesma subpasta do GitHub Pages, o painel fica normalmente em `http://localhost:5173/arton-travel-ruler/`.
 
 No Owlbear Rodeo:
 
 1. Abra o perfil e escolha **Add Extension**.
-2. Informe `http://localhost:5173/manifest.json`.
+2. Informe `http://localhost:5173/arton-travel-ruler/manifest.json`.
 3. Ative a extensão ao criar ou editar uma sala.
 4. Mantenha o terminal com o servidor local aberto durante o teste.
 
@@ -82,13 +82,13 @@ O workflow [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages
 2. No repositório, abra **Settings → Pages**.
 3. Em **Build and deployment → Source**, escolha **GitHub Actions**.
 4. Execute o workflow **Publicar no GitHub Pages** ou envie um novo commit para `main`.
-5. Depois da publicação, instale a extensão usando:
+5. Depois da publicação, instale esta extensão usando:
 
    ```text
-   https://SEU-USUARIO.github.io/NOME-DO-REPOSITORIO/manifest.json
+   https://demonrider0.github.io/arton-travel-ruler/manifest.json
    ```
 
-O `base: "./"` do Vite e os caminhos relativos do manifesto permitem que a extensão funcione nessa subpasta.
+O `base: "/arton-travel-ruler/"` do Vite e os caminhos do manifesto incluem explicitamente a subpasta do repositório. Isso é necessário porque o Owlbear resolve páginas e ícones do manifesto a partir da raiz do domínio. Se o repositório for renomeado, atualize essa base em `vite.config.ts` e `public/manifest.json`; o teste de publicação verificará se os dois continuam alinhados.
 
 ## Verificações automatizadas
 

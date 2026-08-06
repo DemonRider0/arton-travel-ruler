@@ -20,13 +20,16 @@ import {
 } from "../measurements/repository";
 import { formatMeasurement, formatMeasurementLabel } from "../measurements/format";
 import {
-  getLastSegmentMidpoint,
+  cumulativeRouteDistancesInKilometers,
+  getLastPoint,
   isNearPoint,
   routeDistanceInKilometers,
 } from "../measurements/routeMath";
+import { readMeasurementMetadata } from "../measurements/metadata";
+import { getRouteVisualMetrics, type RouteVisualMetrics } from "../measurements/visualStyle";
 import { getCalibratedMapItem, getSceneCalibration } from "../owlbear/sceneCalibration";
 import { IDS, METADATA } from "../shared/constants";
-import type { MapCalibration } from "../shared/models";
+import type { MapCalibration, RoutePointMeasurement } from "../shared/models";
 
 interface ActiveRoute {
   points: Vector2[];
@@ -34,6 +37,7 @@ interface ActiveRoute {
   mapItem: Image;
   preview: RouteVisuals;
   previewId: string;
+  visualMetrics: RouteVisualMetrics;
 }
 
 let activeRoute: ActiveRoute | null = null;
@@ -121,6 +125,11 @@ export async function registerTravelRulerTool(): Promise<void> {
 
 async function handleToolClick(event: ToolEvent): Promise<boolean> {
   try {
+    const targetMetadata = event.target ? readMeasurementMetadata(event.target) : null;
+    if (!activeRoute && targetMetadata) {
+      await OBR.player.select([event.target!.id], true);
+      return true;
+    }
     if (!activeRoute) {
       await beginRoute(event.pointerPosition);
     } else {
@@ -140,11 +149,20 @@ async function beginRoute(start: Vector2): Promise<void> {
     throw new Error("Calibre o mapa desta cena no painel da extensão antes de medir.");
   }
   const mapItem = await getCalibratedMapItem(calibration);
+  await OBR.player.deselect();
   const previewId = crypto.randomUUID();
   const points = [start];
-  const preview = buildPreview(points, start, calibration, mapItem, previewId);
+  const visualMetrics = getRouteVisualMetrics(calibration.imageWidth, mapItem.scale.x);
+  const preview = buildPreview(
+    points,
+    start,
+    calibration,
+    mapItem,
+    previewId,
+    visualMetrics,
+  );
   await OBR.scene.local.addItems(preview.items);
-  activeRoute = { points, calibration, mapItem, preview, previewId };
+  activeRoute = { points, calibration, mapItem, preview, previewId, visualMetrics };
 }
 
 async function addWaypointOrFinish(point: Vector2): Promise<void> {
@@ -178,6 +196,7 @@ async function finishRoute(): Promise<void> {
   }
   await requirePermission("RULER_CREATE", "criar rotas");
   const result = calculateRoute(route.points, route);
+  const pointMeasurements = calculatePointMeasurements(route.points, route);
   const visuals = buildRouteVisuals({
     points: route.points,
     distanceKilometers: result.distanceKilometers,
@@ -186,6 +205,9 @@ async function finishRoute(): Promise<void> {
     measurementId: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
     persistent: true,
+    kilometersPerDay: route.calibration.kilometersPerDay,
+    pointMeasurements,
+    visualMetrics: route.visualMetrics,
   });
 
   await OBR.scene.items.addItems(visuals.items);
@@ -236,7 +258,7 @@ async function updatePreview(end: Vector2): Promise<void> {
         } else if (isShapeItem(item)) {
           item.position = end;
         } else if (isLabelItem(item)) {
-          item.position = getLastSegmentMidpoint(previewPoints);
+          item.position = getLastPoint(previewPoints);
           item.text.plainText = formatMeasurementLabel(
             result.distanceKilometers,
             result.travelDays,
@@ -260,6 +282,7 @@ async function rebuildPreview(provisionalEnd: Vector2): Promise<void> {
     route.calibration,
     route.mapItem,
     route.previewId,
+    route.visualMetrics,
   );
   await OBR.scene.local.deleteItems(previousIds);
   await OBR.scene.local.addItems(nextPreview.items);
@@ -272,9 +295,11 @@ function buildPreview(
   calibration: MapCalibration,
   mapItem: Image,
   previewId: string,
+  visualMetrics: RouteVisualMetrics,
 ): RouteVisuals {
   const previewPoints = [...points, provisionalEnd];
   const result = calculateRoute(previewPoints, { calibration, mapItem });
+  const pointMeasurements = calculatePointMeasurements(previewPoints, { calibration, mapItem });
   return buildRouteVisuals({
     points: previewPoints,
     distanceKilometers: result.distanceKilometers,
@@ -283,7 +308,25 @@ function buildPreview(
     measurementId: previewId,
     createdAt: new Date().toISOString(),
     persistent: false,
+    kilometersPerDay: calibration.kilometersPerDay,
+    pointMeasurements,
+    visualMetrics,
   });
+}
+
+function calculatePointMeasurements(
+  points: Vector2[],
+  route: Pick<ActiveRoute, "calibration" | "mapItem">,
+): RoutePointMeasurement[] {
+  const distances = cumulativeRouteDistancesInKilometers(
+    points,
+    getImageTransform(route.mapItem),
+    route.calibration.kilometersPerImagePixel,
+  );
+  return distances.map((distance) => ({
+    distanceKilometers: Math.round(distance * 10) / 10,
+    travelDays: calculateTravelDays(distance, route.calibration.kilometersPerDay),
+  }));
 }
 
 function calculateRoute(

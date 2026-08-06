@@ -1,6 +1,6 @@
 # Régua de Viagem de Arton para Owlbear Rodeo
 
-Extensão privada/pessoal para traçar rotas de viagem diretamente na cena do Owlbear Rodeo. A versão 0.2 inclui calibração para os mapas fornecidos de **Arton** e **Lamnor**, rotas com vários trechos, dias de viagem e persistência compartilhada.
+Extensão privada/pessoal para traçar rotas de viagem diretamente na cena do Owlbear Rodeo. A versão 0.3 inclui calibração para os mapas fornecidos de **Arton** e **Lamnor**, rotas com vários trechos, consulta de pontos, dias de viagem e persistência compartilhada.
 
 Os mapas **não fazem parte deste repositório**. O mestre escolhe um arquivo local e o envia diretamente para o próprio Atlas do Owlbear Rodeo.
 
@@ -15,7 +15,8 @@ Os mapas **não fazem parte deste repositório**. O mestre escolhe um arquivo lo
 - Suporte a cópias redimensionadas proporcionalmente.
 - Ferramenta de rota disponível na barra lateral para mestre e jogadores.
 - Rotas com dois ou mais pontos e soma correta da distância de todos os trechos.
-- Linha amarela fina e pontilhada, marcadores pequenos e rótulo compacto fora da linha.
+- Linha amarela fina e pontilhada e marcadores pequenos, normalizados pela largura efetiva de cada mapa.
+- Rótulo compacto no ponto final ou no ponto intermediário selecionado.
 - Prévia local durante o traçado; a rota concluída é compartilhada com toda a sala.
 - Rótulo com quilômetros e dias de viagem.
 - Velocidade configurável em quilômetros por dia; o total de dias é arredondado para cima.
@@ -23,6 +24,8 @@ Os mapas **não fazem parte deste repositório**. O mestre escolhe um arquivo lo
 - Ações para cancelar, apagar a última rota e apagar todas as rotas da extensão.
 - Exclusão individual pelo menu contextual de qualquer trecho, ponto ou rótulo da rota.
 - Leitura e exclusão compatíveis com medições salvas pela versão 0.1.
+- Rotas bloqueadas contra deslocamento acidental, inclusive durante a navegação no celular.
+- Ajuste automático do visual e do rótulo das rotas criadas na versão 0.2 ao reabrir a cena.
 
 ## Mapas e calibração
 
@@ -71,6 +74,8 @@ O uso de `localhost` para desenvolvimento segue o fluxo recomendado na documenta
 8. Clique no ponto inicial e depois em cada parada ou desvio da viagem.
 9. Para concluir, clique novamente no último ponto amarelo. Uma rota simples de A até B usa os cliques `A → B → B`.
 
+Depois que a rota estiver salva, clique em um de seus pontos com a ferramenta **Régua de viagem** ativa. O rótulo irá para esse ponto e mostrará a distância e os dias acumulados desde A. Ao remover a seleção, o rótulo volta ao ponto final e ao total completo da rota.
+
 Mestre e jogadores podem usar a ferramenta. Para jogadores, a sala precisa permitir **criar** itens na camada **Régua**. Para que também possam apagar rotas, permita **excluir** itens dessa camada nas configurações de permissões da sala.
 
 As ações do menu da ferramenta permitem:
@@ -81,8 +86,8 @@ As ações do menu da ferramenta permitem:
 
 Para apagar uma rota específica no computador:
 
-1. Troque para a ferramenta normal de seleção do Owlbear.
-2. Selecione qualquer linha pontilhada, ponto amarelo ou rótulo da rota.
+1. Com **Régua de viagem** ativa, clique em qualquer linha pontilhada, ponto amarelo ou rótulo da rota. Também é possível usar um clique duplo com a ferramenta normal de seleção.
+2. Como a rota está bloqueada, ela pode ser selecionada, mas não arrastada.
 3. No menu contextual que aparecer, escolha **Apagar rota selecionada**.
 
 O comando remove todos os trechos, pontos e o rótulo daquela rota, e não apenas o item clicado.
@@ -113,23 +118,29 @@ npm run typecheck
 npm run build
 ```
 
-Os testes cobrem:
+Os testes automatizados são testes de regressão: mesmo quando uma função não foi alterada diretamente, eles garantem que mudanças na rota não quebraram calibração, escala, persistência ou publicação. Não é necessário repetir manualmente todos eles a cada ajuste visual.
+
+Eles cobrem:
 
 - calibração original de Arton e Lamnor;
 - redimensionamento proporcional;
 - rejeição de proporção incompatível;
 - distância euclidiana;
 - escala e rotação do item de mapa;
-- cálculo e arredondamento dos dias de viagem.
+- cálculo e arredondamento dos dias de viagem;
 - soma de rotas com vários trechos;
+- distância acumulada de A até cada ponto;
 - tolerância de clique para concluir no último ponto em diferentes níveis de zoom;
-- posição do rótulo no último trecho;
+- posição do rótulo no último ponto;
+- normalização visual entre as larguras de Arton e Lamnor;
 - compatibilidade entre os metadados das versões 0.1 e 0.2;
 - caminhos e recursos necessários à publicação no GitHub Pages.
 
 ## Roteiro de testes manuais no Owlbear
 
 Faça estes testes antes de usar a extensão em uma sessão real.
+
+Para uma atualização apenas visual, priorize as seções **4** e **5**. As demais formam o roteiro completo de regressão para uma publicação maior.
 
 ### 1. Instalação e painel
 
@@ -157,7 +168,11 @@ Faça estes testes antes de usar a extensão em uma sessão real.
 - Defina 100 km/dia.
 - Faça uma rota de aproximadamente 1000 km e confirme a exibição de aproximadamente 10 dias.
 - Confirme que a linha é fina e pontilhada, os pontos são discretos e o rótulo não fica girado sobre a linha.
+- Compare Arton e Lamnor enquadrados na mesma largura de tela; linha e pontos devem ter tamanhos visuais equivalentes.
 - Crie uma rota `A → B → C` e clique novamente em C. Confirme que a distância corresponde a `A–B + B–C`, não à linha reta `A–C`.
+- Clique em B e confirme que o rótulo vai para B e mostra somente o acumulado `A–B`.
+- Remova a seleção e confirme que o rótulo volta para C e mostra o total `A–B + B–C`.
+- Tente arrastar uma linha, um ponto e o rótulo; nenhum item da rota deve se mover.
 - Inicie outra rota e pressione `Esc`; a prévia deve desaparecer sem criar itens compartilhados.
 - Conclua duas rotas, apague a última e confirme que somente a primeira permanece.
 - Use **Apagar todas** e confirme que as rotas da extensão desapareceram.
@@ -199,6 +214,7 @@ O cadastro em `src/maps/definitions.ts` isola os perfis de mapa. Cada rota é ag
 
 - Não existem marcadores de localidades nem cartões clicáveis.
 - A rota pode ter vários trechos, mas os pontos não podem ser movidos ou editados depois de salva; apague e refaça a rota.
+- A seleção de um ponto atualiza o único rótulo compartilhado da rota; se duas pessoas selecionarem pontos diferentes ao mesmo tempo, a seleção mais recente prevalece.
 - A disponibilidade para jogadores depende das permissões de criação e exclusão da camada **Régua** definidas pelo mestre no Owlbear.
 - Há um mapa calibrado por cena.
 - Os dois perfis dependem da mesma arte/proporção das imagens de referência. Uma edição recortada exige um novo perfil.

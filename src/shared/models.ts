@@ -54,7 +54,15 @@ export interface RouteMeasurementMetadata {
   mapId: MapId;
   distanceKilometers: number;
   travelDays: number;
+  kilometersPerDay?: number;
+  cumulativeDistanceKilometers?: number;
+  cumulativeTravelDays?: number;
   createdAt: string;
+}
+
+export interface RoutePointMeasurement {
+  distanceKilometers: number;
+  travelDays: number;
 }
 
 export type MeasurementMetadata = LegacyMeasurementMetadata | RouteMeasurementMetadata;

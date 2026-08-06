@@ -21,6 +21,24 @@ export function routeDistanceInKilometers(
   return total;
 }
 
+export function cumulativeRouteDistancesInKilometers(
+  points: Vector2[],
+  transform: ImageTransform,
+  kilometersPerImagePixel: number,
+): number[] {
+  const distances = [0];
+  for (let index = 1; index < points.length; index += 1) {
+    const segmentDistance = distanceInKilometers(
+      points[index - 1]!,
+      points[index]!,
+      transform,
+      kilometersPerImagePixel,
+    );
+    distances.push(distances[index - 1]! + segmentDistance);
+  }
+  return distances;
+}
+
 export function isNearPoint(
   point: Vector2,
   target: Vector2,
@@ -34,11 +52,6 @@ export function isNearPoint(
   return Math.hypot(point.x - target.x, point.y - target.y) <= worldTolerance;
 }
 
-export function getLastSegmentMidpoint(points: Vector2[]): Vector2 {
-  const end = points.at(-1) ?? { x: 0, y: 0 };
-  const start = points.at(-2) ?? end;
-  return {
-    x: (start.x + end.x) / 2,
-    y: (start.y + end.y) / 2,
-  };
+export function getLastPoint(points: Vector2[]): Vector2 {
+  return points.at(-1) ?? { x: 0, y: 0 };
 }

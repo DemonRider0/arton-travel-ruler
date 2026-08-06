@@ -9,13 +9,14 @@ import {
   type Vector2,
 } from "@owlbear-rodeo/sdk";
 import { MEASUREMENT_COLORS, METADATA } from "../shared/constants";
-import type { MapId, RouteMeasurementMetadata } from "../shared/models";
+import type {
+  MapId,
+  RouteMeasurementMetadata,
+  RoutePointMeasurement,
+} from "../shared/models";
 import { formatMeasurementLabel } from "./format";
-import { getLastSegmentMidpoint } from "./routeMath";
-
-const LINE_WIDTH = 3;
-const LINE_DASH = [10, 8];
-const MARKER_SIZE = 12;
+import { getLastPoint } from "./routeMath";
+import type { RouteVisualMetrics } from "./visualStyle";
 
 export interface RouteVisuals {
   items: Item[];
@@ -32,6 +33,9 @@ interface BuildRouteVisualsOptions {
   measurementId: string;
   createdAt: string;
   persistent: boolean;
+  kilometersPerDay: number;
+  pointMeasurements: RoutePointMeasurement[];
+  visualMetrics: RouteVisualMetrics;
 }
 
 export function buildRouteVisuals(options: BuildRouteVisualsOptions): RouteVisuals {
@@ -70,12 +74,12 @@ function buildSegment(
     .endPosition(end)
     .strokeColor(MEASUREMENT_COLORS.line)
     .strokeOpacity(1)
-    .strokeWidth(LINE_WIDTH)
-    .strokeDash(LINE_DASH)
+    .strokeWidth(options.visualMetrics.lineWidth)
+    .strokeDash(options.visualMetrics.lineDash)
     .layer("RULER")
-    .locked(!options.persistent)
+    .locked(true)
     .disableHit(!options.persistent);
-  addMetadata(builder, options, "segment", index);
+  addMetadata(builder, options, "segment", index, options.pointMeasurements[index + 1]);
   return builder;
 }
 
@@ -87,25 +91,25 @@ function buildMarker(
   const builder = buildShape()
     .name(`Ponto ${index + 1} da rota`)
     .position(position)
-    .width(MARKER_SIZE)
-    .height(MARKER_SIZE)
+    .width(options.visualMetrics.markerSize)
+    .height(options.visualMetrics.markerSize)
     .shapeType("CIRCLE")
     .fillColor(MEASUREMENT_COLORS.markerFill)
     .fillOpacity(1)
     .strokeColor(MEASUREMENT_COLORS.markerStroke)
     .strokeOpacity(1)
-    .strokeWidth(2)
+    .strokeWidth(options.visualMetrics.markerStrokeWidth)
     .layer("RULER")
-    .locked(!options.persistent)
+    .locked(true)
     .disableHit(!options.persistent);
-  addMetadata(builder, options, "waypoint", index);
+  addMetadata(builder, options, "waypoint", index, options.pointMeasurements[index]);
   return builder;
 }
 
 function buildRouteLabel(options: BuildRouteVisualsOptions): ReturnType<typeof buildLabel> {
   const builder = buildLabel()
     .name("Distância e duração da rota")
-    .position(getLastSegmentMidpoint(options.points))
+    .position(getLastPoint(options.points))
     .plainText(formatMeasurementLabel(options.distanceKilometers, options.travelDays))
     .fontSize(14)
     .fontWeight(500)
@@ -119,7 +123,7 @@ function buildRouteLabel(options: BuildRouteVisualsOptions): ReturnType<typeof b
     .pointerWidth(7)
     .pointerHeight(7)
     .layer("RULER")
-    .locked(!options.persistent)
+    .locked(true)
     .disableHit(!options.persistent);
   addMetadata(builder, options, "label", 0);
   return builder;
@@ -130,6 +134,7 @@ function addMetadata(
   options: BuildRouteVisualsOptions,
   part: RouteMeasurementMetadata["part"],
   partIndex: number,
+  pointMeasurement?: RoutePointMeasurement,
 ): void {
   if (!options.persistent) {
     return;
@@ -142,6 +147,9 @@ function addMetadata(
     mapId: options.mapId,
     distanceKilometers: options.distanceKilometers,
     travelDays: options.travelDays,
+    kilometersPerDay: options.kilometersPerDay,
+    cumulativeDistanceKilometers: pointMeasurement?.distanceKilometers,
+    cumulativeTravelDays: pointMeasurement?.travelDays,
     createdAt: options.createdAt,
   };
   builder.metadata({ [METADATA.measurement]: metadata });

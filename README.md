@@ -100,17 +100,39 @@ As ações de apagar filtram os metadados próprios da extensão e não removem 
 
 ## Publicar no GitHub Pages
 
-O workflow [`.github/workflows/deploy-pages.yml`](.github/workflows/deploy-pages.yml) testa, compila e publica a pasta `dist` automaticamente.
+O Vite gera o site estático na pasta versionada `docs/`. O GitHub Pages publica diretamente essa pasta da branch `main`, sem usar um artefato de deploy personalizado. O arquivo `docs/.nojekyll` impede que o GitHub tente processar a extensão como um site Jekyll.
 
-1. Crie um repositório no GitHub e envie este projeto para a branch `main`.
-2. No repositório, abra **Settings → Pages**.
-3. Em **Build and deployment → Source**, escolha **GitHub Actions**.
-4. Execute o workflow **Publicar no GitHub Pages** ou envie um novo commit para `main`.
-5. Depois da publicação, instale esta extensão usando:
+### Primeira publicação
+
+1. Instale as dependências e prepare os arquivos publicados:
+
+   ```bash
+   npm install
+   npm run prepare-pages
+   ```
+
+2. Envie o código e a pasta `docs/` para a branch `main`.
+3. No repositório, abra **Settings → Pages**.
+4. Em **Build and deployment → Source**, escolha **Deploy from a branch**.
+5. Selecione a branch **main**, a pasta **/docs** e clique em **Save**.
+6. Depois da publicação, instale esta extensão usando:
 
    ```text
    https://demonrider0.github.io/arton-travel-ruler/manifest.json
    ```
+
+### Atualizações seguintes
+
+Sempre gere novamente os arquivos publicados antes do commit:
+
+```bash
+npm run prepare-pages
+git add .
+git commit -m "Descreva a atualização"
+git push
+```
+
+O workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml) repete testes e build no GitHub, mas não altera nem publica arquivos. A publicação é disparada pelo próprio GitHub Pages quando um commit feito pelo usuário modifica a fonte `main/docs`.
 
 O `base: "/arton-travel-ruler/"` do Vite e os caminhos do manifesto incluem explicitamente a subpasta do repositório. Isso é necessário porque o Owlbear resolve páginas e ícones do manifesto a partir da raiz do domínio. Se o repositório for renomeado, atualize essa base em `vite.config.ts` e `public/manifest.json`; o teste de publicação verificará se os dois continuam alinhados.
 
@@ -216,6 +238,8 @@ src/
   tool/              fluxo de vários pontos, ações e menu contextual
 tests/               testes da matemática
 public/              manifesto e ícones
+docs/                site compilado e publicado pelo GitHub Pages
+.github/workflows/   verificação automática de testes e build
 ```
 
 O cadastro em `src/maps/definitions.ts` isola os perfis de mapa. Cada rota é agrupada por um identificador próprio e seus trechos e pontos têm índices independentes. Isso deixa a base preparada para novos mapas e para futuras edições de rotas. Localidades clicáveis podem ser adicionadas em um módulo separado, sem mudar a calibração atual.

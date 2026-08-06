@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -31,6 +31,12 @@ describe("manifesto publicado", () => {
   it("mantém a base do Vite alinhada com o manifesto", () => {
     const viteConfig = readFileSync(viteConfigPath, "utf8");
     expect(viteConfig).toContain(`base: "${PUBLIC_BASE_PATH}"`);
+  });
+
+  it("gera os arquivos publicados na pasta docs", () => {
+    const viteConfig = readFileSync(viteConfigPath, "utf8");
+    expect(viteConfig).toContain('outDir: "docs"');
+    expect(existsSync(resolve(import.meta.dirname, "../public/.nojekyll"))).toBe(true);
   });
 
   it("publica a mesma versão no pacote e no manifesto", () => {

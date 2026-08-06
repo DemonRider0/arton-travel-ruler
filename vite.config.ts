@@ -4,6 +4,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   base: "/arton-travel-ruler/",
   build: {
+    outDir: "docs",
     rollupOptions: {
       input: {
         panel: resolve(import.meta.dirname, "index.html"),

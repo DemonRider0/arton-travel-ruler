@@ -1,6 +1,6 @@
 # Régua de Viagem de Arton para Owlbear Rodeo
 
-Extensão privada/pessoal para traçar rotas de viagem diretamente na cena do Owlbear Rodeo. A versão 0.4 inclui calibração para os mapas fornecidos de **Arton** e **Lamnor**, rotas com vários trechos, consulta coordenada de pontos, dias de viagem e persistência compartilhada.
+Extensão privada/pessoal para traçar rotas de viagem diretamente na cena do Owlbear Rodeo. A versão 0.4.1 inclui calibração para os mapas fornecidos de **Arton** e **Lamnor**, rotas com vários trechos, consulta coordenada de pontos, dias de viagem e persistência compartilhada.
 
 Os mapas **não fazem parte deste repositório**. O mestre escolhe um arquivo local e o envia diretamente para o próprio Atlas do Owlbear Rodeo.
 
@@ -22,7 +22,7 @@ Os mapas **não fazem parte deste repositório**. O mestre escolhe um arquivo lo
 - Velocidade configurável em quilômetros por dia; o total de dias é arredondado para cima.
 - Medições gravadas como itens da cena, visíveis para todos e preservadas ao reabrir a cena.
 - Ações para cancelar, apagar a última rota e apagar todas as rotas da extensão.
-- Exclusão individual pelo menu contextual de qualquer trecho, ponto ou rótulo da rota.
+- Exclusão individual pelo menu contextual de qualquer ponto da rota.
 - Leitura e exclusão compatíveis com medições salvas pela versão 0.1.
 - Rotas bloqueadas contra deslocamento acidental, inclusive durante a navegação no celular.
 - Ajuste automático do visual e do rótulo das rotas criadas na versão 0.2 ao reabrir a cena.
@@ -76,7 +76,7 @@ O uso de `localhost` para desenvolvimento segue o fluxo recomendado na documenta
 8. Clique no ponto inicial e depois em cada parada ou desvio da viagem.
 9. Para concluir, clique novamente no último ponto amarelo. Uma rota simples de A até B usa os cliques `A → B → B`.
 
-Depois que a rota estiver salva, clique em um de seus pontos com a ferramenta **Régua de viagem** ativa. O rótulo irá para esse ponto e mostrará a distância e os dias acumulados desde A. Essa consulta não usa a seleção nativa do Owlbear, portanto não abre a barra de transformação sobre o texto.
+Depois que a rota estiver salva, clique em um de seus pontos com a ferramenta **Régua de viagem** ativa. O rótulo irá para esse ponto e mostrará a distância e os dias acumulados desde A. A área de clique é um pouco maior do que a bolinha visível e sempre escolhe o ponto mais próximo. A linha e o rótulo não capturam o clique, evitando que escondam os pontos intermediários.
 
 Para liberar a consulta, clique novamente no mesmo ponto, clique fora da rota, pressione `Esc` ou troque de ferramenta. Se outra pessoa já estiver consultando, seu pedido entra na fila e assume automaticamente quando chegar a vez. Sair da sala ou trocar de cena também deixa de bloquear os demais participantes.
 
@@ -90,7 +90,7 @@ As ações do menu da ferramenta permitem:
 
 Para apagar uma rota específica no computador:
 
-1. Troque para a ferramenta normal de seleção e dê um clique duplo em qualquer linha pontilhada, ponto amarelo ou rótulo da rota.
+1. Troque para a ferramenta normal de seleção e dê um clique duplo em qualquer ponto amarelo da rota.
 2. Como a rota está bloqueada, ela pode ser selecionada, mas não arrastada.
 3. No menu contextual que aparecer, escolha **Apagar rota selecionada**.
 
@@ -156,6 +156,8 @@ Eles cobrem:
 - cálculo e arredondamento dos dias de viagem;
 - soma de rotas com vários trechos;
 - distância acumulada de A até cada ponto;
+- identificação consistente dos pontos intermediários de uma rota A–E, inclusive quando áreas de clique se sobrepõem;
+- somente os pontos da rota capturam cliques; linha e rótulo permanecem fora da seleção nativa;
 - tolerância de clique para concluir no último ponto em diferentes níveis de zoom;
 - posição do rótulo no último ponto;
 - normalização visual entre as larguras de Arton e Lamnor;
@@ -197,21 +199,22 @@ Para uma atualização apenas visual, priorize as seções **4** e **5**. As dem
 - Faça uma rota de aproximadamente 1000 km e confirme a exibição de aproximadamente 10 dias.
 - Confirme que a linha é fina e pontilhada, os pontos são discretos e o rótulo não fica girado sobre a linha.
 - Compare Arton e Lamnor enquadrados na mesma largura de tela; linha e pontos devem ter tamanhos visuais equivalentes.
-- Crie uma rota `A → B → C` e clique novamente em C. Confirme que a distância corresponde a `A–B + B–C`, não à linha reta `A–C`.
-- Clique em B e confirme que o rótulo vai para B e mostra somente o acumulado `A–B`.
+- Crie uma rota `A → B → C → D → E` e clique novamente em E. Confirme que a distância corresponde à soma dos quatro trechos, não à linha reta `A–E`.
+- Consulte, nesta ordem, C, B, D, A e E. Todos os pontos devem responder, o rótulo deve acompanhar o ponto escolhido e mostrar somente a distância acumulada desde A.
 - Confirme que nenhuma barra de transformação do Owlbear aparece sobre o rótulo durante essa consulta.
-- Clique novamente em B, clique fora ou pressione `Esc`; confirme que o rótulo volta para C e mostra o total `A–B + B–C`.
+- Clique novamente no ponto selecionado, clique fora ou pressione `Esc`; confirme que o rótulo volta para E e mostra o total da rota.
 - Tente arrastar uma linha, um ponto e o rótulo; nenhum item da rota deve se mover.
 - Inicie outra rota e pressione `Esc`; a prévia deve desaparecer sem criar itens compartilhados.
 - Conclua duas rotas, apague a última e confirme que somente a primeira permanece.
 - Use **Apagar todas** e confirme que as rotas da extensão desapareceram.
-- Selecione um trecho de uma rota com a ferramenta de seleção e use **Apagar rota selecionada**; confirme que a rota inteira desaparece.
+- Selecione um ponto de uma rota com a ferramenta de seleção e use **Apagar rota selecionada**; confirme que a rota inteira desaparece.
 
 ### 5. Compartilhamento e persistência
 
 - Entre na mesma sala em outra janela ou navegador como jogador.
 - Conclua uma rota como mestre e confirme que ela aparece para o jogador.
 - Com as permissões de Régua liberadas, crie outra rota como jogador e confirme que ela aparece para o mestre.
+- Como jogador, consulte C, B, D, A e E em uma rota de cinco pontos e confirme que mestre e jogador veem o mesmo rótulo em cada tentativa.
 - Como mestre, consulte um ponto e, sem liberar, tente consultar outro ponto como jogador. O mestre deve manter a prioridade e o jogador deve receber a posição na fila.
 - Libere a consulta do mestre e confirme que a consulta do jogador assume automaticamente.
 - Feche a janela de quem está consultando e confirme que o próximo participante deixa de ficar bloqueado.

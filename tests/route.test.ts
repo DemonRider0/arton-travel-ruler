@@ -1,8 +1,10 @@
 import type { Item } from "@owlbear-rodeo/sdk";
 import { describe, expect, it } from "vitest";
+import { shouldDisableRouteHit } from "../src/measurements/hitBehavior";
 import { readMeasurementMetadata } from "../src/measurements/metadata";
 import {
   cumulativeRouteDistancesInKilometers,
+  findNearestPointIndex,
   getLastPoint,
   isNearPoint,
   routeDistanceInKilometers,
@@ -57,6 +59,33 @@ describe("rotas com vários trechos", () => {
     ).toEqual([0, 10, 20]);
   });
 
+  it("encontra de forma consistente qualquer ponto de uma rota A-E", () => {
+    const points = [
+      { x: 0, y: 0 },
+      { x: 100, y: 20 },
+      { x: 200, y: 0 },
+      { x: 300, y: 20 },
+      { x: 400, y: 0 },
+    ];
+    expect(findNearestPointIndex({ x: 103, y: 18 }, points, 1)).toBe(1);
+    expect(findNearestPointIndex({ x: 199, y: 4 }, points, 1)).toBe(2);
+    expect(findNearestPointIndex({ x: 297, y: 23 }, points, 1)).toBe(3);
+    expect(findNearestPointIndex({ x: 250, y: 80 }, points, 1)).toBeNull();
+  });
+
+  it("escolhe o ponto mais próximo quando duas áreas de clique se sobrepõem", () => {
+    expect(
+      findNearestPointIndex(
+        { x: 11, y: 0 },
+        [
+          { x: 0, y: 0 },
+          { x: 18, y: 0 },
+        ],
+        1,
+      ),
+    ).toBe(1);
+  });
+
   it("posiciona o rótulo no último ponto", () => {
     expect(
       getLastPoint([
@@ -82,6 +111,20 @@ describe("normalização visual entre mapas", () => {
     const lamnor = getRouteVisualMetrics(1215, 1);
     expect(arton.lineWidth * 1).toBeCloseTo(lamnor.lineWidth * (3229 / 1215), 10);
     expect(arton.markerSize * 1).toBeCloseTo(lamnor.markerSize * (3229 / 1215), 10);
+  });
+});
+
+describe("áreas clicáveis da rota", () => {
+  it("deixa somente os pontos capturarem cliques", () => {
+    expect(shouldDisableRouteHit("segment", true)).toBe(true);
+    expect(shouldDisableRouteHit("waypoint", true)).toBe(false);
+    expect(shouldDisableRouteHit("label", true)).toBe(true);
+  });
+
+  it("impede que todos os itens da prévia capturem cliques", () => {
+    expect(shouldDisableRouteHit("segment", false)).toBe(true);
+    expect(shouldDisableRouteHit("waypoint", false)).toBe(true);
+    expect(shouldDisableRouteHit("label", false)).toBe(true);
   });
 });
 

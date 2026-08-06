@@ -1,6 +1,6 @@
 {
   "name": "Régua de Viagem de Arton",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "manifest_version": 1,
   "author": "DemonRider",
   "description": "Mede distâncias e dias de viagem nos mapas de Arton e Lamnor diretamente na cena.",

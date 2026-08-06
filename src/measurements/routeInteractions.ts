@@ -9,6 +9,7 @@ import { getCalibratedMapItem, getSceneCalibration } from "../owlbear/sceneCalib
 import { METADATA } from "../shared/constants";
 import type { RouteMeasurementMetadata } from "../shared/models";
 import { formatMeasurementLabel } from "./format";
+import { shouldDisableRouteHit } from "./hitBehavior";
 import {
   chooseRouteInteractionWinner,
   getRouteInteractionQueuePosition,
@@ -163,6 +164,9 @@ async function hydrateInteractionState(): Promise<void> {
 }
 
 async function refreshRouteAppearance(): Promise<void> {
+  if (!(await canUpdateSharedRouteItems())) {
+    return;
+  }
   const calibration = await getSceneCalibration();
   if (!calibration) {
     return;
@@ -179,16 +183,18 @@ async function refreshRouteAppearance(): Promise<void> {
         continue;
       }
       item.locked = true;
-      item.disableHit = false;
 
       if (isLineItem(item) && metadata.part === "segment") {
+        item.disableHit = shouldDisableRouteHit(metadata.part, true);
         item.style.strokeWidth = metrics.lineWidth;
         item.style.strokeDash = metrics.lineDash;
       } else if (isShapeItem(item) && metadata.part === "waypoint") {
+        item.disableHit = shouldDisableRouteHit(metadata.part, true);
         item.width = metrics.markerSize;
         item.height = metrics.markerSize;
         item.style.strokeWidth = metrics.markerStrokeWidth;
       } else if (isLabelItem(item) && metadata.part === "label") {
+        item.disableHit = shouldDisableRouteHit(metadata.part, true);
         const finalWaypoint = finalWaypointByMeasurement.get(metadata.measurementId);
         if (finalWaypoint) {
           item.position = finalWaypoint.position;
@@ -236,17 +242,25 @@ async function reconcileInteractionQueue(
     return { winner, localQueuePosition };
   }
 
+  const canUpdateSharedRoute = await canUpdateSharedRouteItems();
+  if (revision !== coordinationRevision) {
+    return { winner, localQueuePosition };
+  }
   const nextInteractionKey = winner
     ? `${winner.requestId}:${winner.measurementId}:${winner.pointIndex}`
     : null;
   if (nextInteractionKey !== displayedInteractionKey) {
-    if (displayedMeasurementId && displayedMeasurementId !== winner?.measurementId) {
+    if (
+      canUpdateSharedRoute &&
+      displayedMeasurementId &&
+      displayedMeasurementId !== winner?.measurementId
+    ) {
       await updateRouteLabel(displayedMeasurementId, null);
     }
     if (revision !== coordinationRevision) {
       return { winner, localQueuePosition };
     }
-    if (winner) {
+    if (canUpdateSharedRoute && winner) {
       await updateRouteLabel(winner.measurementId, winner.pointIndex);
     }
     if (revision === coordinationRevision) {
@@ -411,4 +425,12 @@ function createRouteSignature(items: Item[]): string {
 
 async function getRouteItems(): Promise<Item[]> {
   return OBR.scene.items.getItems((item) => Boolean(item.metadata[METADATA.measurement]));
+}
+
+async function canUpdateSharedRouteItems(): Promise<boolean> {
+  const [role, hasUpdatePermission] = await Promise.all([
+    OBR.player.getRole(),
+    OBR.player.hasPermission("RULER_UPDATE"),
+  ]);
+  return role === "GM" || hasUpdatePermission;
 }

@@ -15,6 +15,7 @@ import type {
   RoutePointMeasurement,
 } from "../shared/models";
 import { formatMeasurementLabel } from "./format";
+import { shouldDisableRouteHit } from "./hitBehavior";
 import { getLastPoint } from "./routeMath";
 import {
   ROUTE_LABEL_POINTER_HEIGHT,
@@ -81,7 +82,7 @@ function buildSegment(
     .strokeDash(options.visualMetrics.lineDash)
     .layer("RULER")
     .locked(true)
-    .disableHit(!options.persistent);
+    .disableHit(shouldDisableRouteHit("segment", options.persistent));
   addMetadata(builder, options, "segment", index, options.pointMeasurements[index + 1]);
   return builder;
 }
@@ -104,7 +105,7 @@ function buildMarker(
     .strokeWidth(options.visualMetrics.markerStrokeWidth)
     .layer("RULER")
     .locked(true)
-    .disableHit(!options.persistent);
+    .disableHit(shouldDisableRouteHit("waypoint", options.persistent));
   addMetadata(builder, options, "waypoint", index, options.pointMeasurements[index]);
   return builder;
 }
@@ -127,7 +128,7 @@ function buildRouteLabel(options: BuildRouteVisualsOptions): ReturnType<typeof b
     .pointerHeight(ROUTE_LABEL_POINTER_HEIGHT)
     .layer("RULER")
     .locked(true)
-    .disableHit(!options.persistent);
+    .disableHit(shouldDisableRouteHit("label", options.persistent));
   addMetadata(builder, options, "label", 0);
   return builder;
 }

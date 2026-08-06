@@ -21,6 +21,7 @@ import {
 import { formatMeasurement, formatMeasurementLabel } from "../measurements/format";
 import {
   cumulativeRouteDistancesInKilometers,
+  findNearestPointIndex,
   getLastPoint,
   isNearPoint,
   routeDistanceInKilometers,
@@ -34,7 +35,11 @@ import {
 import { getRouteVisualMetrics, type RouteVisualMetrics } from "../measurements/visualStyle";
 import { getCalibratedMapItem, getSceneCalibration } from "../owlbear/sceneCalibration";
 import { IDS, METADATA } from "../shared/constants";
-import type { MapCalibration, RoutePointMeasurement } from "../shared/models";
+import type {
+  MapCalibration,
+  RouteMeasurementMetadata,
+  RoutePointMeasurement,
+} from "../shared/models";
 
 interface ActiveRoute {
   points: Vector2[];
@@ -140,13 +145,15 @@ export async function registerTravelRulerTool(): Promise<void> {
 async function handleToolClick(event: ToolEvent): Promise<boolean> {
   try {
     const targetMetadata = event.target ? readMeasurementMetadata(event.target) : null;
+    const waypointMetadata = !activeRoute
+      ? await resolveWaypointAtPointer(event.pointerPosition, targetMetadata)
+      : null;
     if (
       !activeRoute &&
-      targetMetadata?.version === 2 &&
-      targetMetadata.part === "waypoint"
+      waypointMetadata
     ) {
       await OBR.player.deselect();
-      await requestRoutePointInteraction(targetMetadata);
+      await requestRoutePointInteraction(waypointMetadata);
       return true;
     }
     if (!activeRoute && targetMetadata) {
@@ -168,6 +175,32 @@ async function handleToolClick(event: ToolEvent): Promise<boolean> {
     await cancelRoute(false);
   }
   return true;
+}
+
+async function resolveWaypointAtPointer(
+  pointerPosition: Vector2,
+  targetMetadata: ReturnType<typeof readMeasurementMetadata>,
+): Promise<RouteMeasurementMetadata | null> {
+  if (targetMetadata?.version === 2 && targetMetadata.part === "waypoint") {
+    return targetMetadata;
+  }
+
+  const [items, viewportScale] = await Promise.all([
+    OBR.scene.items.getItems((item) => Boolean(item.metadata[METADATA.measurement])),
+    OBR.viewport.getScale(),
+  ]);
+  const waypoints = items.flatMap((item) => {
+    const metadata = readMeasurementMetadata(item);
+    return isShapeItem(item) && metadata?.version === 2 && metadata.part === "waypoint"
+      ? [{ item, metadata }]
+      : [];
+  });
+  const nearestIndex = findNearestPointIndex(
+    pointerPosition,
+    waypoints.map(({ item }) => item.position),
+    viewportScale,
+  );
+  return nearestIndex === null ? null : waypoints[nearestIndex]!.metadata;
 }
 
 async function beginRoute(start: Vector2): Promise<void> {

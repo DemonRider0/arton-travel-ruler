@@ -52,6 +52,37 @@ export function isNearPoint(
   return Math.hypot(point.x - target.x, point.y - target.y) <= worldTolerance;
 }
 
+export function findNearestPointIndex(
+  point: Vector2,
+  candidates: Vector2[],
+  viewportScale: number,
+  toleranceInScreenPixels = 20,
+): number | null {
+  if (!Number.isFinite(viewportScale) || viewportScale <= 0) {
+    return null;
+  }
+
+  const worldTolerance = toleranceInScreenPixels / viewportScale;
+  const maximumDistanceSquared = worldTolerance * worldTolerance;
+  let nearestIndex: number | null = null;
+  let nearestDistanceSquared = Number.POSITIVE_INFINITY;
+
+  candidates.forEach((candidate, index) => {
+    const deltaX = point.x - candidate.x;
+    const deltaY = point.y - candidate.y;
+    const distanceSquared = deltaX * deltaX + deltaY * deltaY;
+    if (
+      distanceSquared <= maximumDistanceSquared &&
+      distanceSquared < nearestDistanceSquared
+    ) {
+      nearestIndex = index;
+      nearestDistanceSquared = distanceSquared;
+    }
+  });
+
+  return nearestIndex;
+}
+
 export function getLastPoint(points: Vector2[]): Vector2 {
   return points.at(-1) ?? { x: 0, y: 0 };
 }

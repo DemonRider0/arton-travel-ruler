@@ -1,32 +1,165 @@
-import OBR, { type Item, type Label, type Shape } from "@owlbear-rodeo/sdk";
+import OBR, {
+  type Item,
+  type Label,
+  type Player,
+  type Shape,
+} from "@owlbear-rodeo/sdk";
 import { calculateTravelDays, getImageTransform } from "../maps/calibration";
 import { getCalibratedMapItem, getSceneCalibration } from "../owlbear/sceneCalibration";
 import { METADATA } from "../shared/constants";
 import type { RouteMeasurementMetadata } from "../shared/models";
 import { formatMeasurementLabel } from "./format";
+import {
+  chooseRouteInteractionWinner,
+  getRouteInteractionQueuePosition,
+  readRouteInteractionRequest,
+  type RouteInteractionRequest,
+} from "./interactionQueue";
 import { isLabelItem, isLineItem, isShapeItem } from "./items";
 import { readMeasurementMetadata } from "./metadata";
 import { cumulativeRouteDistancesInKilometers } from "./routeMath";
-import { getRouteVisualMetrics } from "./visualStyle";
+import {
+  getRouteVisualMetrics,
+  ROUTE_LABEL_POINTER_HEIGHT,
+} from "./visualStyle";
 
-let selectionListenerRegistered = false;
-let selectedMeasurementId: string | null = null;
-let selectionRevision = 0;
+let listenersRegistered = false;
+let currentSceneScope: string | null = null;
+let localConnectionId = "";
+let localPlayerName = "Jogador";
+let localRequest: RouteInteractionRequest | null = null;
+let partyPlayers: Player[] = [];
+let displayedMeasurementId: string | null = null;
+let displayedInteractionKey: string | null = null;
+let routeSignature = "";
+let coordinationRevision = 0;
+let localRequestWasQueued = false;
 
-export function registerRouteSelectionListener(): void {
-  if (selectionListenerRegistered) {
+export function registerRouteInteractionListeners(): void {
+  if (listenersRegistered) {
     return;
   }
-  selectionListenerRegistered = true;
+  listenersRegistered = true;
+
   OBR.player.onChange((player) => {
-    void handleSelectionChange(player.selection);
+    localConnectionId = player.connectionId;
+    localPlayerName = player.name;
+    localRequest = readRouteInteractionRequest(player.metadata[METADATA.interactionRequest]);
+    void reconcileInteractionQueue();
+  });
+  OBR.party.onChange((players) => {
+    partyPlayers = players;
+    void reconcileInteractionQueue();
+  });
+  OBR.scene.items.onChange((items) => {
+    const nextSignature = createRouteSignature(items);
+    if (nextSignature !== routeSignature) {
+      routeSignature = nextSignature;
+      void reconcileInteractionQueue(getVersionTwoRouteItems(items));
+    }
   });
 }
 
 export async function refreshRouteInteractions(): Promise<void> {
-  selectedMeasurementId = null;
+  const calibration = await getSceneCalibration();
+  currentSceneScope = calibration?.mapItemId ?? null;
+  displayedMeasurementId = null;
+  displayedInteractionKey = null;
+
+  await hydrateInteractionState();
+  if (localRequest && localRequest.sceneScope !== currentSceneScope) {
+    localRequest = null;
+    await OBR.player.setMetadata({ [METADATA.interactionRequest]: null });
+  }
+
   await refreshRouteAppearance();
-  await handleSelectionChange(await OBR.player.getSelection());
+  const items = await getRouteItems();
+  routeSignature = createRouteSignature(items);
+  await reconcileInteractionQueue(items);
+}
+
+export function hasLocalRouteInteraction(): boolean {
+  return Boolean(localRequest && localRequest.sceneScope === currentSceneScope);
+}
+
+export async function requestRoutePointInteraction(
+  metadata: RouteMeasurementMetadata,
+): Promise<"ACTIVE" | "QUEUED" | "RELEASED"> {
+  if (!currentSceneScope) {
+    throw new Error("Abra uma cena calibrada antes de consultar uma rota.");
+  }
+  if (!localConnectionId) {
+    await hydrateInteractionState();
+  }
+
+  if (
+    localRequest?.sceneScope === currentSceneScope &&
+    localRequest.measurementId === metadata.measurementId &&
+    localRequest.pointIndex === metadata.partIndex
+  ) {
+    await releaseRouteInteraction();
+    return "RELEASED";
+  }
+
+  const existingRequest = localRequest?.sceneScope === currentSceneScope
+    ? localRequest
+    : null;
+  const request: RouteInteractionRequest = {
+    version: 1,
+    requestId: existingRequest?.requestId ?? crypto.randomUUID(),
+    sceneScope: currentSceneScope,
+    measurementId: metadata.measurementId,
+    pointIndex: metadata.partIndex,
+    requestedAt: existingRequest?.requestedAt ?? Date.now(),
+    connectionId: localConnectionId,
+    playerName: localPlayerName,
+  };
+  localRequest = request;
+  await OBR.player.setMetadata({ [METADATA.interactionRequest]: request });
+
+  const state = await reconcileInteractionQueue();
+  if (state.winner?.requestId === request.requestId) {
+    localRequestWasQueued = false;
+    return "ACTIVE";
+  }
+
+  localRequestWasQueued = true;
+  const positionText = state.localQueuePosition && state.localQueuePosition > 1
+    ? ` Você está na posição ${state.localQueuePosition} da fila.`
+    : "";
+  const ownerName = state.winner?.playerName ?? "outro jogador";
+  await OBR.notification.show(
+    `${ownerName} está consultando a régua.${positionText}`,
+    "INFO",
+  );
+  return "QUEUED";
+}
+
+export async function releaseRouteInteraction(showNotification = false): Promise<boolean> {
+  if (!localRequest) {
+    return false;
+  }
+  localRequest = null;
+  localRequestWasQueued = false;
+  await OBR.player.setMetadata({ [METADATA.interactionRequest]: null });
+  await reconcileInteractionQueue();
+  if (showNotification) {
+    await OBR.notification.show("Consulta da régua liberada.", "INFO");
+  }
+  return true;
+}
+
+async function hydrateInteractionState(): Promise<void> {
+  const [connectionId, playerName, metadata, players] = await Promise.all([
+    OBR.player.getConnectionId(),
+    OBR.player.getName(),
+    OBR.player.getMetadata(),
+    OBR.party.getPlayers(),
+  ]);
+  localConnectionId = connectionId;
+  localPlayerName = playerName;
+  localRequest = readRouteInteractionRequest(metadata[METADATA.interactionRequest]);
+  partyPlayers = players;
 }
 
 async function refreshRouteAppearance(): Promise<void> {
@@ -60,6 +193,7 @@ async function refreshRouteAppearance(): Promise<void> {
         if (finalWaypoint) {
           item.position = finalWaypoint.position;
         }
+        item.style.pointerHeight = ROUTE_LABEL_POINTER_HEIGHT;
         item.text.plainText = formatMeasurementLabel(
           metadata.distanceKilometers,
           metadata.travelDays,
@@ -69,41 +203,77 @@ async function refreshRouteAppearance(): Promise<void> {
   });
 }
 
-async function handleSelectionChange(selection: string[] | undefined): Promise<void> {
-  const revision = ++selectionRevision;
-  if (!(await OBR.scene.isReady())) {
-    selectedMeasurementId = null;
-    return;
-  }
-  const selectedItems = selection?.length
-    ? await OBR.scene.items.getItems(selection)
-    : [];
-  if (revision !== selectionRevision) {
-    return;
+async function reconcileInteractionQueue(
+  knownItems?: Item[],
+): Promise<{
+  winner: RouteInteractionRequest | null;
+  localQueuePosition: number | null;
+}> {
+  const revision = ++coordinationRevision;
+  if (!currentSceneScope || !(await OBR.scene.isReady())) {
+    displayedMeasurementId = null;
+    displayedInteractionKey = null;
+    return { winner: null, localQueuePosition: null };
   }
 
-  const waypoint = selectedItems.find((item) => {
-    const metadata = readMeasurementMetadata(item);
-    return metadata?.version === 2 && metadata.part === "waypoint";
-  });
-  const waypointMetadata = waypoint
-    ? (readMeasurementMetadata(waypoint) as RouteMeasurementMetadata)
+  const items = knownItems ?? await getRouteItems();
+  const validMeasurementIds = getMeasurementIds(items);
+  const requests = collectInteractionRequests();
+  const winner = chooseRouteInteractionWinner(
+    requests,
+    currentSceneScope,
+    validMeasurementIds,
+  );
+  const localQueuePosition = localRequest
+    ? getRouteInteractionQueuePosition(
+        localRequest.requestId,
+        requests,
+        currentSceneScope,
+        validMeasurementIds,
+      )
     : null;
-  const nextMeasurementId = waypointMetadata?.measurementId ?? null;
-
-  if (selectedMeasurementId && selectedMeasurementId !== nextMeasurementId) {
-    await updateRouteLabel(selectedMeasurementId, null);
-  }
-  if (revision !== selectionRevision) {
-    return;
+  if (revision !== coordinationRevision) {
+    return { winner, localQueuePosition };
   }
 
-  if (waypoint && waypointMetadata) {
-    await updateRouteLabel(waypointMetadata.measurementId, waypointMetadata.partIndex);
+  const nextInteractionKey = winner
+    ? `${winner.requestId}:${winner.measurementId}:${winner.pointIndex}`
+    : null;
+  if (nextInteractionKey !== displayedInteractionKey) {
+    if (displayedMeasurementId && displayedMeasurementId !== winner?.measurementId) {
+      await updateRouteLabel(displayedMeasurementId, null);
+    }
+    if (revision !== coordinationRevision) {
+      return { winner, localQueuePosition };
+    }
+    if (winner) {
+      await updateRouteLabel(winner.measurementId, winner.pointIndex);
+    }
+    if (revision === coordinationRevision) {
+      displayedMeasurementId = winner?.measurementId ?? null;
+      displayedInteractionKey = nextInteractionKey;
+    }
   }
-  if (revision === selectionRevision) {
-    selectedMeasurementId = nextMeasurementId;
+
+  if (
+    localRequestWasQueued &&
+    localRequest &&
+    winner?.requestId === localRequest.requestId
+  ) {
+    localRequestWasQueued = false;
+    await OBR.notification.show("Agora você pode consultar a régua.", "SUCCESS");
   }
+  return { winner, localQueuePosition };
+}
+
+function collectInteractionRequests(): RouteInteractionRequest[] {
+  const requests = [
+    localRequest,
+    ...partyPlayers.map((player) =>
+      readRouteInteractionRequest(player.metadata[METADATA.interactionRequest]),
+    ),
+  ].filter((request): request is RouteInteractionRequest => Boolean(request));
+  return [...new Map(requests.map((request) => [request.requestId, request])).values()];
 }
 
 async function updateRouteLabel(
@@ -144,6 +314,7 @@ async function updateRouteLabel(
       return;
     }
     draftLabel.position = targetWaypoint.item.position;
+    draftLabel.style.pointerHeight = ROUTE_LABEL_POINTER_HEIGHT;
     draftLabel.text.plainText = formatMeasurementLabel(
       display.distanceKilometers,
       display.travelDays,
@@ -216,6 +387,26 @@ function getSortedWaypoints(
         : [];
     })
     .sort((left, right) => left.metadata.partIndex - right.metadata.partIndex);
+}
+
+function getMeasurementIds(items: Item[]): Set<string> {
+  return new Set(
+    items.flatMap((item) => {
+      const metadata = readMeasurementMetadata(item);
+      return metadata?.version === 2 ? [metadata.measurementId] : [];
+    }),
+  );
+}
+
+function getVersionTwoRouteItems(items: Item[]): Item[] {
+  return items.filter((item) => readMeasurementMetadata(item)?.version === 2);
+}
+
+function createRouteSignature(items: Item[]): string {
+  return getVersionTwoRouteItems(items)
+    .map((item) => item.id)
+    .sort()
+    .join("|");
 }
 
 async function getRouteItems(): Promise<Item[]> {

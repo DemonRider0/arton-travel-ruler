@@ -1,13 +1,13 @@
 import OBR from "@owlbear-rodeo/sdk";
 import {
   refreshRouteInteractions,
-  registerRouteSelectionListener,
+  registerRouteInteractionListeners,
 } from "../measurements/routeInteractions";
 import { applyPendingCalibration } from "../owlbear/sceneCalibration";
 import { registerTravelRulerTool } from "../tool/registerTool";
 
 OBR.onReady(() => {
-  registerRouteSelectionListener();
+  registerRouteInteractionListeners();
   void initializeScene();
   OBR.scene.onReadyChange((ready) => {
     if (ready) {

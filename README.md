@@ -1,6 +1,6 @@
 # Régua de Viagem de Arton para Owlbear Rodeo
 
-Extensão privada/pessoal para traçar rotas de viagem diretamente na cena do Owlbear Rodeo. A versão 0.3 inclui calibração para os mapas fornecidos de **Arton** e **Lamnor**, rotas com vários trechos, consulta de pontos, dias de viagem e persistência compartilhada.
+Extensão privada/pessoal para traçar rotas de viagem diretamente na cena do Owlbear Rodeo. A versão 0.4 inclui calibração para os mapas fornecidos de **Arton** e **Lamnor**, rotas com vários trechos, consulta coordenada de pontos, dias de viagem e persistência compartilhada.
 
 Os mapas **não fazem parte deste repositório**. O mestre escolhe um arquivo local e o envia diretamente para o próprio Atlas do Owlbear Rodeo.
 
@@ -26,6 +26,8 @@ Os mapas **não fazem parte deste repositório**. O mestre escolhe um arquivo lo
 - Leitura e exclusão compatíveis com medições salvas pela versão 0.1.
 - Rotas bloqueadas contra deslocamento acidental, inclusive durante a navegação no celular.
 - Ajuste automático do visual e do rótulo das rotas criadas na versão 0.2 ao reabrir a cena.
+- Pontos clicáveis pela própria ferramenta, sem abrir a barra de transformação nativa sobre o rótulo.
+- Fila compartilhada de consulta: a primeira pessoa mantém prioridade e as demais aguardam a liberação.
 
 ## Mapas e calibração
 
@@ -74,7 +76,9 @@ O uso de `localhost` para desenvolvimento segue o fluxo recomendado na documenta
 8. Clique no ponto inicial e depois em cada parada ou desvio da viagem.
 9. Para concluir, clique novamente no último ponto amarelo. Uma rota simples de A até B usa os cliques `A → B → B`.
 
-Depois que a rota estiver salva, clique em um de seus pontos com a ferramenta **Régua de viagem** ativa. O rótulo irá para esse ponto e mostrará a distância e os dias acumulados desde A. Ao remover a seleção, o rótulo volta ao ponto final e ao total completo da rota.
+Depois que a rota estiver salva, clique em um de seus pontos com a ferramenta **Régua de viagem** ativa. O rótulo irá para esse ponto e mostrará a distância e os dias acumulados desde A. Essa consulta não usa a seleção nativa do Owlbear, portanto não abre a barra de transformação sobre o texto.
+
+Para liberar a consulta, clique novamente no mesmo ponto, clique fora da rota, pressione `Esc` ou troque de ferramenta. Se outra pessoa já estiver consultando, seu pedido entra na fila e assume automaticamente quando chegar a vez. Sair da sala ou trocar de cena também deixa de bloquear os demais participantes.
 
 Mestre e jogadores podem usar a ferramenta. Para jogadores, a sala precisa permitir **criar** itens na camada **Régua**. Para que também possam apagar rotas, permita **excluir** itens dessa camada nas configurações de permissões da sala.
 
@@ -86,7 +90,7 @@ As ações do menu da ferramenta permitem:
 
 Para apagar uma rota específica no computador:
 
-1. Com **Régua de viagem** ativa, clique em qualquer linha pontilhada, ponto amarelo ou rótulo da rota. Também é possível usar um clique duplo com a ferramenta normal de seleção.
+1. Troque para a ferramenta normal de seleção e dê um clique duplo em qualquer linha pontilhada, ponto amarelo ou rótulo da rota.
 2. Como a rota está bloqueada, ela pode ser selecionada, mas não arrastada.
 3. No menu contextual que aparecer, escolha **Apagar rota selecionada**.
 
@@ -133,6 +137,8 @@ Eles cobrem:
 - tolerância de clique para concluir no último ponto em diferentes níveis de zoom;
 - posição do rótulo no último ponto;
 - normalização visual entre as larguras de Arton e Lamnor;
+- prioridade determinística e avanço da fila de consulta;
+- isolamento da fila por cena e descarte de pedidos de rotas apagadas;
 - compatibilidade entre os metadados das versões 0.1 e 0.2;
 - caminhos e recursos necessários à publicação no GitHub Pages.
 
@@ -171,7 +177,8 @@ Para uma atualização apenas visual, priorize as seções **4** e **5**. As dem
 - Compare Arton e Lamnor enquadrados na mesma largura de tela; linha e pontos devem ter tamanhos visuais equivalentes.
 - Crie uma rota `A → B → C` e clique novamente em C. Confirme que a distância corresponde a `A–B + B–C`, não à linha reta `A–C`.
 - Clique em B e confirme que o rótulo vai para B e mostra somente o acumulado `A–B`.
-- Remova a seleção e confirme que o rótulo volta para C e mostra o total `A–B + B–C`.
+- Confirme que nenhuma barra de transformação do Owlbear aparece sobre o rótulo durante essa consulta.
+- Clique novamente em B, clique fora ou pressione `Esc`; confirme que o rótulo volta para C e mostra o total `A–B + B–C`.
 - Tente arrastar uma linha, um ponto e o rótulo; nenhum item da rota deve se mover.
 - Inicie outra rota e pressione `Esc`; a prévia deve desaparecer sem criar itens compartilhados.
 - Conclua duas rotas, apague a última e confirme que somente a primeira permanece.
@@ -183,6 +190,9 @@ Para uma atualização apenas visual, priorize as seções **4** e **5**. As dem
 - Entre na mesma sala em outra janela ou navegador como jogador.
 - Conclua uma rota como mestre e confirme que ela aparece para o jogador.
 - Com as permissões de Régua liberadas, crie outra rota como jogador e confirme que ela aparece para o mestre.
+- Como mestre, consulte um ponto e, sem liberar, tente consultar outro ponto como jogador. O mestre deve manter a prioridade e o jogador deve receber a posição na fila.
+- Libere a consulta do mestre e confirme que a consulta do jogador assume automaticamente.
+- Feche a janela de quem está consultando e confirme que o próximo participante deixa de ficar bloqueado.
 - Recarregue as duas páginas e reabra a cena; a medição deve continuar presente.
 - Confirme que todos veem os trechos, os pontos, a distância e os dias.
 
@@ -214,7 +224,7 @@ O cadastro em `src/maps/definitions.ts` isola os perfis de mapa. Cada rota é ag
 
 - Não existem marcadores de localidades nem cartões clicáveis.
 - A rota pode ter vários trechos, mas os pontos não podem ser movidos ou editados depois de salva; apague e refaça a rota.
-- A seleção de um ponto atualiza o único rótulo compartilhado da rota; se duas pessoas selecionarem pontos diferentes ao mesmo tempo, a seleção mais recente prevalece.
+- Há somente uma consulta compartilhada ativa por cena; os demais pedidos aguardam em ordem de chegada.
 - A disponibilidade para jogadores depende das permissões de criação e exclusão da camada **Régua** definidas pelo mestre no Owlbear.
 - Há um mapa calibrado por cena.
 - Os dois perfis dependem da mesma arte/proporção das imagens de referência. Uma edição recortada exige um novo perfil.

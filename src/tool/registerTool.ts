@@ -26,6 +26,11 @@ import {
   routeDistanceInKilometers,
 } from "../measurements/routeMath";
 import { readMeasurementMetadata } from "../measurements/metadata";
+import {
+  hasLocalRouteInteraction,
+  releaseRouteInteraction,
+  requestRoutePointInteraction,
+} from "../measurements/routeInteractions";
 import { getRouteVisualMetrics, type RouteVisualMetrics } from "../measurements/visualStyle";
 import { getCalibratedMapItem, getSceneCalibration } from "../owlbear/sceneCalibration";
 import { IDS, METADATA } from "../shared/constants";
@@ -66,11 +71,16 @@ export async function registerTravelRulerTool(): Promise<void> {
     onToolMove: (_context, event) => schedulePreview(event.pointerPosition),
     onKeyDown: (_context, event) => {
       if (event.key === "Escape") {
-        void cancelRoute(true);
+        if (activeRoute) {
+          void cancelRoute(true);
+        } else {
+          void releaseRouteInteraction(true);
+        }
       }
     },
     onDeactivate: () => {
       void cancelRoute(false);
+      void releaseRouteInteraction();
     },
   });
 
@@ -78,7 +88,11 @@ export async function registerTravelRulerTool(): Promise<void> {
     id: IDS.cancelAction,
     icons: [{ icon: assetUrl("cancel.svg"), label: "Cancelar rota", filter: activeFilter }],
     onClick: () => {
-      void cancelRoute(true);
+      if (activeRoute) {
+        void cancelRoute(true);
+      } else {
+        void releaseRouteInteraction(true);
+      }
     },
   });
 
@@ -126,8 +140,22 @@ export async function registerTravelRulerTool(): Promise<void> {
 async function handleToolClick(event: ToolEvent): Promise<boolean> {
   try {
     const targetMetadata = event.target ? readMeasurementMetadata(event.target) : null;
+    if (
+      !activeRoute &&
+      targetMetadata?.version === 2 &&
+      targetMetadata.part === "waypoint"
+    ) {
+      await OBR.player.deselect();
+      await requestRoutePointInteraction(targetMetadata);
+      return true;
+    }
     if (!activeRoute && targetMetadata) {
+      await releaseRouteInteraction();
       await OBR.player.select([event.target!.id], true);
+      return true;
+    }
+    if (!activeRoute && hasLocalRouteInteraction()) {
+      await releaseRouteInteraction(true);
       return true;
     }
     if (!activeRoute) {
@@ -143,6 +171,7 @@ async function handleToolClick(event: ToolEvent): Promise<boolean> {
 }
 
 async function beginRoute(start: Vector2): Promise<void> {
+  await releaseRouteInteraction();
   await requirePermission("RULER_CREATE", "criar rotas");
   const calibration = await getSceneCalibration();
   if (!calibration) {
@@ -367,6 +396,7 @@ async function clearPreview(): Promise<void> {
 
 async function handleDeleteLast(): Promise<void> {
   try {
+    await releaseRouteInteraction();
     await requirePermission("RULER_DELETE", "apagar rotas");
     await cancelRoute(false);
     const count = await deleteLastMeasurement();
@@ -381,6 +411,7 @@ async function handleDeleteLast(): Promise<void> {
 
 async function handleDeleteAll(): Promise<void> {
   try {
+    await releaseRouteInteraction();
     await requirePermission("RULER_DELETE", "apagar rotas");
     await cancelRoute(false);
     const count = await deleteAllMeasurements();
@@ -395,6 +426,7 @@ async function handleDeleteAll(): Promise<void> {
 
 async function handleDeleteSelected(items: Item[]): Promise<void> {
   try {
+    await releaseRouteInteraction();
     await requirePermission("RULER_DELETE", "apagar rotas");
     const count = await deleteMeasurementsSelected(items);
     await OBR.notification.show(

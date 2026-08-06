@@ -16,7 +16,10 @@ import type {
 } from "../shared/models";
 import { formatMeasurementLabel } from "./format";
 import { getLastPoint } from "./routeMath";
-import type { RouteVisualMetrics } from "./visualStyle";
+import {
+  ROUTE_LABEL_POINTER_HEIGHT,
+  type RouteVisualMetrics,
+} from "./visualStyle";
 
 export interface RouteVisuals {
   items: Item[];
@@ -121,7 +124,7 @@ function buildRouteLabel(options: BuildRouteVisualsOptions): ReturnType<typeof b
     .cornerRadius(6)
     .pointerDirection("DOWN")
     .pointerWidth(7)
-    .pointerHeight(7)
+    .pointerHeight(ROUTE_LABEL_POINTER_HEIGHT)
     .layer("RULER")
     .locked(true)
     .disableHit(!options.persistent);

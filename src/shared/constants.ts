@@ -12,6 +12,7 @@ export const IDS = {
 export const METADATA = {
   calibration: `${EXTENSION_ID}/calibration`,
   measurement: `${EXTENSION_ID}/measurement`,
+  interactionRequest: `${EXTENSION_ID}/interaction-request`,
 } as const;
 
 export const MEASUREMENT_COLORS = {

@@ -1,6 +1,8 @@
 const REFERENCE_MAP_WORLD_WIDTH = 3229;
 const MIN_VISUAL_SCALE = 0.2;
 
+export const ROUTE_LABEL_POINTER_HEIGHT = 16;
+
 export interface RouteVisualMetrics {
   lineWidth: number;
   lineDash: number[];

@@ -2,6 +2,8 @@
   "name": "arton-travel-ruler",
   "private": true,
   "version": "1.0.0",
+  "description": "Extensão para medir distâncias e dias de viagem nos mapas de Arton e Lamnor no Owlbear Rodeo.",
+  "author": "DemonRider",
   "type": "module",
   "scripts": {
     "dev": "vite",

@@ -7,14 +7,31 @@ const manifestPath = resolve(import.meta.dirname, "../public/manifest.json");
 const viteConfigPath = resolve(import.meta.dirname, "../vite.config.ts");
 const packagePath = resolve(import.meta.dirname, "../package.json");
 const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+  name: string;
   version: string;
+  manifest_version: number;
+  author: string;
+  description: string;
   icon: string;
   background_url: string;
   action: { icon: string; popover: string };
 };
-const packageJson = JSON.parse(readFileSync(packagePath, "utf8")) as { version: string };
+const packageJson = JSON.parse(readFileSync(packagePath, "utf8")) as {
+  version: string;
+  author: string;
+  description: string;
+};
 
 describe("manifesto publicado", () => {
+  it("possui os metadados públicos obrigatórios", () => {
+    expect(manifest.name).toBe("Régua de Viagem de Arton");
+    expect(manifest.manifest_version).toBe(1);
+    expect(manifest.author).toBe("DemonRider");
+    expect(manifest.description.trim()).not.toBe("");
+    expect(packageJson.author).toBe(manifest.author);
+    expect(packageJson.description.trim()).not.toBe("");
+  });
+
   it("inclui a subpasta do GitHub Pages em todas as páginas do Owlbear", () => {
     expect(manifest.icon).toBe(`${PUBLIC_BASE_PATH}icon.svg`);
     expect(manifest.background_url).toBe(`${PUBLIC_BASE_PATH}background.html`);
